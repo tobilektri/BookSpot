@@ -1,0 +1,14 @@
+# Fallback when the domain points to the project root instead of /public
+# (recommended: set the document root to the "public" folder).
+Options -Indexes
+
+<FilesMatch "^\.|\.(sql|sqlite|log|lock|md|json|xml|dist|yml|neon)$|^(Dockerfile|composer\..*)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(backend|vendor|var|tests|frontend|docker|node_modules)(/|$) - [F,L]
+    RewriteCond %{REQUEST_URI} !/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

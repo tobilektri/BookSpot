@@ -8,11 +8,16 @@ use BookSpot\Api;
 use BookSpot\App;
 use BookSpot\Auth;
 use BookSpot\MetadataService;
+use BookSpot\MetadataUnavailable;
 use BookSpot\Request;
 
 // GET lookup.php?isbn=978… -> metadata from Open Library (fallback: Google Books)
 Api::run(function (Request $req) {
     Auth::requireUser();
-    $meta = (new MetadataService(App::db()))->lookup((string) $req->query('isbn', ''));
+    try {
+        $meta = (new MetadataService(App::db()))->lookup((string) $req->query('isbn', ''));
+    } catch (MetadataUnavailable) {
+        return ['found' => false, 'metadata' => null, 'unavailable' => true];
+    }
     return ['found' => $meta !== null, 'metadata' => $meta];
 });

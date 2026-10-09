@@ -34,10 +34,22 @@ final class MetadataService
             return null;
         }
 
-        $result = $this->openLibrary($isbn13) ?? [];
+        // Transport errors are counted: "not found" is only final when every source answered.
+        $failures = 0;
+        try {
+            $result = $this->openLibrary($isbn13) ?? [];
+        } catch (MetadataUnavailable) {
+            $result = [];
+            $failures++;
+        }
         $missing = array_filter(['title', 'authors', 'pages', 'cover_url', 'description', 'genre', 'publisher'], fn ($k) => empty($result[$k]));
         if ($missing !== []) {
-            $google = $this->googleBooks($isbn13) ?? [];
+            try {
+                $google = $this->googleBooks($isbn13) ?? [];
+            } catch (MetadataUnavailable) {
+                $google = [];
+                $failures++;
+            }
             foreach ($google as $key => $value) {
                 if (empty($result[$key]) && !empty($value)) {
                     $result[$key] = $value;
@@ -48,9 +60,13 @@ final class MetadataService
             }
         }
         if (empty($result['title'])) {
+            if ($failures > 0) {
+                throw new MetadataUnavailable('Metadata services unreachable');
+            }
             return null;
         }
-        return $result + ['isbn13' => $isbn13, 'isbn10' => $isbn10];
+        // partial: a source failed, so missing fields may still be found later.
+        return $result + ['isbn13' => $isbn13, 'isbn10' => $isbn10, 'partial' => $failures > 0];
     }
 
     /** @return array<string, mixed>|null */
@@ -127,7 +143,10 @@ final class MetadataService
      * Fills empty catalogue fields for books that have never been checked.
      * Called repeatedly by the frontend after an import and by cron.php.
      *
-     * @return array{processed: int, updated: int, remaining: int}
+     * Books are only marked as checked when the lookup really answered; on
+     * network/rate-limit errors the batch stops and they are retried later.
+     *
+     * @return array{processed: int, updated: int, remaining: int, unavailable: bool}
      */
     public function enrichBatch(int $limit = 5, float $maxSeconds = 20.0): array
     {
@@ -137,17 +156,23 @@ final class MetadataService
         );
         $processed = 0;
         $updated = 0;
+        $unavailable = false;
         foreach ($books as $book) {
             if (microtime(true) - $start > $maxSeconds) {
                 break;
             }
-            $processed++;
-            $changes = ['metadata_checked_at' => App::nowString()];
             try {
                 $meta = $this->lookup((string) $book['isbn13']);
-            } catch (\Throwable) {
-                $meta = null;
+            } catch (MetadataUnavailable) {
+                $unavailable = true;
+                break;
+            } catch (ApiException) {
+                $meta = null; // invalid ISBN: nothing to look up, mark as checked
             }
+            $processed++;
+            // A partial answer (one source failed) fills what it can but keeps the book queued.
+            $partial = (bool) ($meta['partial'] ?? false);
+            $changes = $partial ? [] : ['metadata_checked_at' => App::nowString()];
             if ($meta !== null) {
                 foreach (['publisher', 'published_year', 'genre', 'language', 'description', 'cover_url'] as $field) {
                     if (empty($book[$field]) && !empty($meta[$field])) {
@@ -160,15 +185,19 @@ final class MetadataService
                 if (trim((string) $book['authors']) === '' && !empty($meta['authors'])) {
                     $changes['authors'] = mb_substr((string) $meta['authors'], 0, 255);
                 }
-                if (count($changes) > 1) {
+                if (count(array_diff_key($changes, ['metadata_checked_at' => 1])) > 0) {
                     $updated++;
                     $changes['updated_at'] = App::nowString();
                 }
             }
             $this->db->update('books', $changes, ['id' => (int) $book['id']]);
+            if ($partial) {
+                $unavailable = true;
+                break;
+            }
         }
         $remaining = (int) $this->db->value('SELECT COUNT(*) FROM books WHERE metadata_checked_at IS NULL AND isbn13 IS NOT NULL');
-        return ['processed' => $processed, 'updated' => $updated, 'remaining' => $remaining];
+        return ['processed' => $processed, 'updated' => $updated, 'remaining' => $remaining, 'unavailable' => $unavailable];
     }
 
     /** @param list<string> $subjects */
@@ -185,7 +214,10 @@ final class MetadataService
         return null;
     }
 
-    /** @return array<string, mixed>|null */
+    /**
+     * @return array<string, mixed>|null null when the service answered "nothing found"
+     * @throws MetadataUnavailable on network errors, rate limits and server errors
+     */
     private function fetchJson(string $url): ?array
     {
         $body = $this->httpGet !== null ? ($this->httpGet)($url) : self::httpGet($url);
@@ -213,14 +245,28 @@ final class MetadataService
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             curl_close($ch);
-            return (is_string($body) && $status >= 200 && $status < 300) ? $body : null;
+            return self::interpret(is_string($body) ? $body : null, $status);
         }
         $context = stream_context_create(['http' => [
             'timeout' => self::TIMEOUT,
             'header' => "User-Agent: $userAgent\r\nAccept: application/json\r\n",
-            'ignore_errors' => false,
+            'ignore_errors' => true,
         ]]);
         $body = @file_get_contents($url, false, $context);
-        return $body === false ? null : $body;
+        $status = 0;
+        foreach ($http_response_header ?? [] as $header) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m)) {
+                $status = (int) $m[1];
+            }
+        }
+        return self::interpret($body === false ? null : $body, $status);
+    }
+
+    private static function interpret(?string $body, int $status): ?string
+    {
+        if ($status === 0 || $status === 429 || $status >= 500) {
+            throw new MetadataUnavailable("HTTP status $status");
+        }
+        return ($body !== null && $status >= 200 && $status < 300) ? $body : null;
     }
 }

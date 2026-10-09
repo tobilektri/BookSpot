@@ -1,0 +1,89 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #fffbeb;
+  --color-brand-100: #fef3c7;
+  --color-brand-200: #fde68a;
+  --color-brand-300: #fcd34d;
+  --color-brand-400: #fbbf24;
+  --color-brand-500: #d97706;
+  --color-brand-600: #b45309;
+  --color-brand-700: #92400e;
+  --color-brand-800: #78350f;
+  --color-brand-900: #451a03;
+  --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}
+
+@utility card {
+  @apply rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition select-none disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800;
+}
+
+@utility btn-secondary {
+  @apply btn border border-stone-300 bg-white text-stone-800 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800;
+}
+
+@utility btn-ghost {
+  @apply btn text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800;
+}
+
+@utility btn-danger {
+  @apply btn bg-red-600 text-white hover:bg-red-700;
+}
+
+@utility input {
+  @apply block w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-stone-900 placeholder-stone-400 shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100;
+}
+
+@utility label {
+  @apply mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300;
+}
+
+@utility field-error {
+  @apply mt-1 text-sm text-red-600 dark:text-red-400;
+}
+
+@utility chip {
+  @apply inline-flex shrink-0 items-center gap-1 rounded-full border border-stone-300 px-3 py-1.5 text-sm whitespace-nowrap text-stone-700 transition dark:border-stone-700 dark:text-stone-300;
+}
+
+@utility chip-active {
+  @apply border-brand-600 bg-brand-600 text-white dark:border-brand-500 dark:bg-brand-600;
+}
+
+@utility section-title {
+  @apply mb-3 text-lg font-semibold;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.scanner-frame {
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.45);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}

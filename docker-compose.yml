@@ -1,0 +1,75 @@
+# Production-ready stack: nginx + PHP 8.5-FPM + MariaDB + cron (reminders & metadata).
+#   cp .env.example .env   # set DB_PASS, DB_ROOT_PASS, CRON_TOKEN …
+#   docker compose up -d --build
+# App: http://localhost:8080 (put a TLS reverse proxy in front for the camera & push features).
+
+services:
+  app:
+    build: { context: ., target: app }
+    image: bookspot-app
+    restart: unless-stopped
+    environment: &app-env
+      APP_ENV: ${APP_ENV:-production}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      APP_NAME: ${APP_NAME:-}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Berlin}
+      DB_DRIVER: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-bookspot}
+      DB_USER: ${DB_USER:-bookspot}
+      DB_PASS: ${DB_PASS:-bookspot_pass}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      SESSION_SECURE: ${SESSION_SECURE:-auto}
+      CRON_TOKEN: ${CRON_TOKEN:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.org}
+      METADATA_LOOKUP: ${METADATA_LOOKUP:-true}
+      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+    volumes:
+      - app_var:/var/www/html/var
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build: { context: ., target: web }
+    image: bookspot-web
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    depends_on:
+      - app
+
+  # Runs reminders (push 3 days / 1 day before due date) and metadata enrichment hourly.
+  cron:
+    image: bookspot-app
+    restart: unless-stopped
+    environment: *app-env
+    volumes:
+      - app_var:/var/www/html/var
+    user: www-data
+    command: ["sh", "-c", "while true; do php backend/bin/cron.php; sleep 3600; done"]
+    depends_on:
+      app: { condition: service_started }
+
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS:-root_secret_pass}
+      MARIADB_DATABASE: ${DB_NAME:-bookspot}
+      MARIADB_USER: ${DB_USER:-bookspot}
+      MARIADB_PASSWORD: ${DB_PASS:-bookspot_pass}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mariadb_data:
+  app_var:

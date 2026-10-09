@@ -152,7 +152,15 @@ final class BookService
              $from ORDER BY $order LIMIT $limit OFFSET $offset",
             $params
         );
-        return ['items' => array_map($this->present(...), $rows), 'total' => $total];
+        $items = array_map($this->present(...), $rows);
+        if (!empty($filters['compact'])) {
+            // Lean payload for the offline catalogue cache.
+            foreach ($items as &$item) {
+                unset($item['description']);
+            }
+            unset($item);
+        }
+        return ['items' => $items, 'total' => $total];
     }
 
     /** @return list<array<string, mixed>> active library/private loans ordered by due date */

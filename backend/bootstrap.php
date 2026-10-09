@@ -39,9 +39,15 @@ if (is_writable(App::varDir())) {
     ini_set('error_log', App::varDir() . '/error.log');
 }
 
+// Warnings become exceptions (fail loudly); notices and deprecations – e.g. library
+// hints like "install GMP for speed" on shared hosting – are only logged.
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
     if (!(error_reporting() & $severity)) {
         return false;
+    }
+    if (in_array($severity, [E_NOTICE, E_USER_NOTICE, E_DEPRECATED, E_USER_DEPRECATED], true)) {
+        error_log("[BookSpot] notice: $message in $file:$line");
+        return true;
     }
     throw new ErrorException($message, 0, $severity, $file, $line);
 });

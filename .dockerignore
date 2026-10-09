@@ -1,0 +1,15 @@
+.git
+.env
+.github
+vendor
+var
+frontend/node_modules
+public/assets
+public/index.html
+public/sw.js
+public/manifest.webmanifest
+public/icons
+public/favicon.svg
+tests
+*.md
+!README.md

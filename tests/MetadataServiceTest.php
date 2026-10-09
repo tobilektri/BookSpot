@@ -1,0 +1,113 @@
+<?php
+
+declare(strict_types=1);
+
+namespace BookSpot\Tests;
+
+use BookSpot\BookService;
+use BookSpot\Config;
+use BookSpot\MetadataService;
+use BookSpot\MetadataUnavailable;
+use BookSpot\ShelfService;
+
+final class MetadataServiceTest extends TestCase
+{
+    private const OPEN_LIBRARY = '{"ISBN:9783548283951":{"title":"Impact","authors":[{"name":"Bernd Steinhardt"}],"publishers":[{"name":"Ullstein"}],"publish_date":"2011","number_of_pages":528,"subjects":[{"name":"Accessible book"},{"name":"Thriller / Spannung"}],"cover":{"medium":"http://covers.openlibrary.org/b/id/1-M.jpg","large":"http://covers.openlibrary.org/b/id/1-L.jpg"}}}';
+    private const GOOGLE = '{"items":[{"volumeInfo":{"title":"Impact","description":"<p>Ein Meteorit …</p>","categories":["Fiction"],"language":"de","imageLinks":{"thumbnail":"http://books.google.com/x&edge=curl"}}}]}';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Config::set('METADATA_LOOKUP', 'true');
+    }
+
+    protected function tearDown(): void
+    {
+        Config::set('METADATA_LOOKUP', 'false');
+        parent::tearDown();
+    }
+
+    public function testMergesOpenLibraryAndGoogleBooks(): void
+    {
+        $service = new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary') ? self::OPEN_LIBRARY : self::GOOGLE);
+        $meta = $service->lookup('978-3-548-28395-1');
+        self::assertSame('Impact', $meta['title']);
+        self::assertSame('Bernd Steinhardt', $meta['authors']);
+        self::assertSame('Ullstein', $meta['publisher']);
+        self::assertSame(2011, $meta['published_year']);
+        self::assertSame(528, $meta['pages']);
+        self::assertSame('Thriller', $meta['genre'], 'housekeeping subjects are skipped');
+        self::assertSame('https://covers.openlibrary.org/b/id/1-L.jpg', $meta['cover_url']);
+        self::assertSame('Ein Meteorit …', $meta['description']);
+        self::assertSame('de', $meta['language']);
+        self::assertSame(['open_library', 'google_books'], $meta['sources']);
+    }
+
+    /** Real Open Library answer for this ISBN (no authors/pages/year/subjects). */
+    private const OPEN_LIBRARY_SPARSE = '{"ISBN:9783548283951": {"url": "http://openlibrary.org/books/OL27469599M/Impact", "key": "/books/OL27469599M", "title": "Impact", "identifiers": {"amazon": ["3548283950"], "isbn_10": ["3548283950"], "isbn_13": ["9783548283951"], "openlibrary": ["OL27469599M"]}, "publishers": [{"name": "Ullstein Taschenbuchvlg."}], "cover": {"small": "https://covers.openlibrary.org/b/id/8927996-S.jpg", "medium": "https://covers.openlibrary.org/b/id/8927996-M.jpg", "large": "https://covers.openlibrary.org/b/id/8927996-L.jpg"}}}';
+    private const GOOGLE_FULL = '{"items":[{"volumeInfo":{"title":"Impact","authors":["Bernd Steinhardt"],"publisher":"Ullstein","publishedDate":"2011-05-12","pageCount":528,"categories":["Fiction"],"language":"de"}}]}';
+
+    public function testSparseOpenLibraryAnswerIsCompletedByGoogle(): void
+    {
+        $service = new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary') ? self::OPEN_LIBRARY_SPARSE : self::GOOGLE_FULL);
+        $meta = $service->lookup('9783548283951');
+        self::assertSame('Impact', $meta['title']);
+        self::assertSame('Ullstein Taschenbuchvlg.', $meta['publisher'], 'Open Library wins where it has data');
+        self::assertSame('https://covers.openlibrary.org/b/id/8927996-L.jpg', $meta['cover_url']);
+        self::assertSame('Bernd Steinhardt', $meta['authors']);
+        self::assertSame(528, $meta['pages']);
+        self::assertSame(2011, $meta['published_year']);
+        self::assertFalse($meta['partial']);
+    }
+
+    public function testSparseAnswerWithGoogleRateLimitStaysQueued(): void
+    {
+        $user = $this->createUser();
+        $books = new BookService($this->db, new ShelfService($this->db));
+        $book = $books->create(['isbn' => '9783548283951', 'title' => 'Impact'], $user['id']);
+
+        $service = new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary')
+            ? self::OPEN_LIBRARY_SPARSE
+            : throw new MetadataUnavailable('HTTP status 429'));
+        $meta = $service->lookup('9783548283951');
+        self::assertTrue($meta['partial']);
+
+        $result = $service->enrichBatch();
+        self::assertTrue($result['unavailable']);
+        self::assertSame(1, $result['updated'], 'cover/publisher from Open Library are applied');
+        self::assertSame(1, $result['remaining'], 'but the book is retried for the fields Google would add');
+        self::assertSame('https://covers.openlibrary.org/b/id/8927996-L.jpg', $books->get($book['id'], $user['id'])['cover_url']);
+    }
+
+    public function testNotFoundVersusUnavailable(): void
+    {
+        $empty = new MetadataService($this->db, fn () => '{}');
+        self::assertNull($empty->lookup('9783548283951'));
+
+        $down = new MetadataService($this->db, fn () => throw new MetadataUnavailable('timeout'));
+        $this->expectException(MetadataUnavailable::class);
+        $down->lookup('9783548283951');
+    }
+
+    public function testEnrichBatchFillsGapsAndRetriesAfterOutage(): void
+    {
+        $user = $this->createUser();
+        $books = new BookService($this->db, new ShelfService($this->db));
+        $book = $books->create(['isbn' => '9783548283951', 'title' => 'Impact', 'genre' => 'Eigenes Genre'], $user['id']);
+
+        $down = new MetadataService($this->db, fn () => throw new MetadataUnavailable('429'));
+        $result = $down->enrichBatch();
+        self::assertTrue($result['unavailable']);
+        self::assertSame(0, $result['processed']);
+        self::assertSame(1, $result['remaining'], 'not marked as checked during an outage');
+
+        $up = new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary') ? self::OPEN_LIBRARY : self::GOOGLE);
+        $result = $up->enrichBatch();
+        self::assertSame(['processed' => 1, 'updated' => 1, 'remaining' => 0, 'unavailable' => false], $result);
+        $enriched = $books->get($book['id'], $user['id']);
+        self::assertSame('Eigenes Genre', $enriched['genre'], 'existing values are never overwritten');
+        self::assertSame(528, $enriched['pages']);
+        self::assertSame('Ullstein', $enriched['publisher']);
+        self::assertStringStartsWith('https://covers.openlibrary.org', $enriched['cover_url']);
+    }
+}
