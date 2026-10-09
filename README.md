@@ -32,6 +32,7 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
   gespeichert und bei Verbindung automatisch über `api/sync.php` übertragen (Konflikterkennung).
 - **Export** als Bookstats-kompatible CSV (re-importierbar).
 - Metadaten-Anreicherung (Cover, Beschreibung, Verlag, Genre) im Hintergrund in kleinen Batches.
+  Google Books benötigt einen eigenen, kostenlosen API-Key → [docs/google-books-api-key.md](docs/google-books-api-key.md).
 
 ## Architektur
 
@@ -75,6 +76,8 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
    Projektordner auf `public/` um und sperrt `backend/`, `vendor/`, `var/` und `.env`.
 4. **Datenbank anlegen** (Zeichensatz `utf8mb4`) und `.env.example` als `.env` kopieren:
    `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `APP_URL`, `CRON_TOKEN` eintragen.
+   Für vollständige Buchdaten zusätzlich einen kostenlosen `GOOGLE_BOOKS_API_KEY`
+   ([Anleitung](docs/google-books-api-key.md)).
    Ohne MySQL geht auch `DB_DRIVER=sqlite`.
 5. Ordner `var/` beschreibbar machen (Sessions, Logs, SQLite).
 6. Seite aufrufen → **erstes Konto anlegen** (wird Admin). Die Tabellen werden automatisch erstellt.

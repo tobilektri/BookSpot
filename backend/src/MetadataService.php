@@ -12,6 +12,9 @@ namespace BookSpot;
 final class MetadataService
 {
     private const TIMEOUT = 8;
+    /** Partial answers are retried this often before the available data counts as final. */
+    public const MAX_ATTEMPTS = 3;
+    private const RETRY_AFTER_HOURS = 6;
 
     /** @var (callable(string): ?string)|null injectable HTTP client for tests */
     private $httpGet;
@@ -146,16 +149,19 @@ final class MetadataService
      * Books are only marked as checked when the lookup really answered; on
      * network/rate-limit errors the batch stops and they are retried later.
      *
-     * @return array{processed: int, updated: int, remaining: int, unavailable: bool}
+     * @return array{processed: int, updated: int, partial: int, remaining: int, unavailable: bool}
      */
     public function enrichBatch(int $limit = 5, float $maxSeconds = 20.0): array
     {
         $start = microtime(true);
+        [$where, $params] = $this->dueCondition();
         $books = $this->db->all(
-            'SELECT * FROM books WHERE metadata_checked_at IS NULL AND isbn13 IS NOT NULL ORDER BY id LIMIT ' . max(1, min(50, $limit))
+            "SELECT * FROM books WHERE $where ORDER BY metadata_attempts, id LIMIT " . max(1, min(50, $limit)),
+            $params
         );
         $processed = 0;
         $updated = 0;
+        $partials = 0;
         $unavailable = false;
         foreach ($books as $book) {
             if (microtime(true) - $start > $maxSeconds) {
@@ -164,40 +170,70 @@ final class MetadataService
             try {
                 $meta = $this->lookup((string) $book['isbn13']);
             } catch (MetadataUnavailable) {
+                // No source answered (network down): stop and retry the whole batch later.
                 $unavailable = true;
                 break;
             } catch (ApiException) {
                 $meta = null; // invalid ISBN: nothing to look up, mark as checked
             }
             $processed++;
-            // A partial answer (one source failed) fills what it can but keeps the book queued.
-            $partial = (bool) ($meta['partial'] ?? false);
-            $changes = $partial ? [] : ['metadata_checked_at' => App::nowString()];
+            $now = App::nowString();
+            $attempts = (int) $book['metadata_attempts'] + 1;
+            // A partial answer (one source failed, e.g. Google Books without API key) fills what
+            // it can; the book is retried later and accepted as final after MAX_ATTEMPTS.
+            $partial = (bool) ($meta['partial'] ?? false) && $attempts < self::MAX_ATTEMPTS;
+            $changes = ['metadata_attempts' => $attempts, 'metadata_attempted_at' => $now];
+            if (!$partial) {
+                $changes['metadata_checked_at'] = $now;
+            } else {
+                $partials++;
+            }
             if ($meta !== null) {
+                $fields = 0;
                 foreach (['publisher', 'published_year', 'genre', 'language', 'description', 'cover_url'] as $field) {
                     if (empty($book[$field]) && !empty($meta[$field])) {
                         $changes[$field] = is_string($meta[$field]) ? mb_substr($meta[$field], 0, $field === 'description' ? 20000 : ($field === 'cover_url' ? 500 : 100)) : $meta[$field];
+                        $fields++;
                     }
                 }
                 if ((int) $book['pages'] === 0 && !empty($meta['pages'])) {
                     $changes['pages'] = (int) $meta['pages'];
+                    $fields++;
                 }
                 if (trim((string) $book['authors']) === '' && !empty($meta['authors'])) {
                     $changes['authors'] = mb_substr((string) $meta['authors'], 0, 255);
+                    $fields++;
                 }
-                if (count(array_diff_key($changes, ['metadata_checked_at' => 1])) > 0) {
+                if ($fields > 0) {
                     $updated++;
-                    $changes['updated_at'] = App::nowString();
+                    $changes['updated_at'] = $now;
                 }
             }
             $this->db->update('books', $changes, ['id' => (int) $book['id']]);
-            if ($partial) {
-                $unavailable = true;
-                break;
-            }
         }
-        $remaining = (int) $this->db->value('SELECT COUNT(*) FROM books WHERE metadata_checked_at IS NULL AND isbn13 IS NOT NULL');
-        return ['processed' => $processed, 'updated' => $updated, 'remaining' => $remaining, 'unavailable' => $unavailable];
+        return [
+            'processed' => $processed,
+            'updated' => $updated,
+            'partial' => $partials,
+            'remaining' => $this->pendingCount(),
+            'unavailable' => $unavailable,
+        ];
+    }
+
+    /** Books that are due for a (first or repeated) metadata lookup right now. */
+    public function pendingCount(): int
+    {
+        [$where, $params] = $this->dueCondition();
+        return (int) $this->db->value("SELECT COUNT(*) FROM books WHERE $where", $params);
+    }
+
+    /** @return array{0: string, 1: array<string, string>} */
+    private function dueCondition(): array
+    {
+        return [
+            'metadata_checked_at IS NULL AND isbn13 IS NOT NULL AND (metadata_attempted_at IS NULL OR metadata_attempted_at < :retry_before)',
+            ['retry_before' => App::now()->modify('-' . self::RETRY_AFTER_HOURS . ' hours')->format('Y-m-d H:i:s')],
+        ];
     }
 
     /** @param list<string> $subjects */

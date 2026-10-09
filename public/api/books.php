@@ -37,7 +37,7 @@ Api::run(function (Request $req) {
             return ['items' => $books->dueLoans($user['id'])];
         }
         if ($req->action() === 'enrich_status') {
-            return ['remaining' => (int) $db->value('SELECT COUNT(*) FROM books WHERE metadata_checked_at IS NULL AND isbn13 IS NOT NULL')];
+            return ['remaining' => (new MetadataService($db))->pendingCount()];
         }
         if ($req->action() === 'genres') {
             return ['items' => $books->genres()];

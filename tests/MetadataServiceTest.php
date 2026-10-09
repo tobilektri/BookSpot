@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BookSpot\Tests;
 
+use BookSpot\App;
 use BookSpot\BookService;
 use BookSpot\Config;
 use BookSpot\MetadataService;
@@ -66,17 +67,30 @@ final class MetadataServiceTest extends TestCase
         $books = new BookService($this->db, new ShelfService($this->db));
         $book = $books->create(['isbn' => '9783548283951', 'title' => 'Impact'], $user['id']);
 
+        // Open Library answers sparsely for every ISBN, Google Books is over quota.
         $service = new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary')
-            ? self::OPEN_LIBRARY_SPARSE
+            ? str_replace('9783548283951', (string) preg_replace('/.*ISBN:(\d+).*/', '$1', $url), self::OPEN_LIBRARY_SPARSE)
             : throw new MetadataUnavailable('HTTP status 429'));
         $meta = $service->lookup('9783548283951');
         self::assertTrue($meta['partial']);
 
+        $second = $books->create(['isbn' => '9783404139873', 'title' => 'Zweites'], $user['id']);
+
         $result = $service->enrichBatch();
-        self::assertTrue($result['unavailable']);
-        self::assertSame(1, $result['updated'], 'cover/publisher from Open Library are applied');
-        self::assertSame(1, $result['remaining'], 'but the book is retried for the fields Google would add');
+        self::assertFalse($result['unavailable'], 'Open Library answered, so the batch continues');
+        self::assertSame(2, $result['processed'], 'a partial answer does not block the next book');
+        self::assertSame(2, $result['partial']);
+        self::assertSame(0, $result['remaining'], 'partial books wait for the retry interval');
         self::assertSame('https://covers.openlibrary.org/b/id/8927996-L.jpg', $books->get($book['id'], $user['id'])['cover_url']);
+
+        // Retried after 6 hours; after MAX_ATTEMPTS the Open Library data counts as final.
+        for ($i = 2; $i <= MetadataService::MAX_ATTEMPTS; $i++) {
+            App::setNow(App::now()->modify('+7 hours')->format('Y-m-d H:i:s'));
+            self::assertSame(2, $service->pendingCount());
+            $service->enrichBatch();
+        }
+        self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM books WHERE metadata_checked_at IS NULL'));
+        self::assertNotNull($second);
     }
 
     public function testNotFoundVersusUnavailable(): void
@@ -103,7 +117,7 @@ final class MetadataServiceTest extends TestCase
 
         $up = new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary') ? self::OPEN_LIBRARY : self::GOOGLE);
         $result = $up->enrichBatch();
-        self::assertSame(['processed' => 1, 'updated' => 1, 'remaining' => 0, 'unavailable' => false], $result);
+        self::assertSame(['processed' => 1, 'updated' => 1, 'partial' => 0, 'remaining' => 0, 'unavailable' => false], $result);
         $enriched = $books->get($book['id'], $user['id']);
         self::assertSame('Eigenes Genre', $enriched['genre'], 'existing values are never overwritten');
         self::assertSame(528, $enriched['pages']);

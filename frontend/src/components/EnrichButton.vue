@@ -10,6 +10,7 @@ defineProps({ compact: Boolean })
 const remaining = ref(0)
 const running = ref(false)
 let updated = 0
+let partial = 0
 
 onMounted(async () => {
   try {
@@ -23,6 +24,7 @@ onMounted(async () => {
 async function run() {
   running.value = true
   updated = 0
+  partial = 0
   try {
     while (running.value && remaining.value > 0) {
       const result = await api('books.php', { method: 'POST', query: { action: 'enrich' }, body: { limit: 5 } })
@@ -32,9 +34,11 @@ async function run() {
         toast(t('settings.metadataUnavailable'), 'error', 6000)
         break
       }
+      partial += result.partial
       if (result.processed === 0) break
     }
     if (!remaining.value || updated) toast(t('settings.metadataDone', { updated }), 'success')
+    if (partial) toast(t('settings.metadataPartial', { n: partial }), 'info', 8000)
     loadCatalog({ force: true })
   } catch (e) {
     toast(errorMessage(e), 'error')
