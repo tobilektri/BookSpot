@@ -12,7 +12,7 @@ permissions:
 jobs:
   php:
     name: PHP ${{ matrix.php }} · ${{ matrix.db }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -31,7 +31,7 @@ jobs:
           --health-cmd="healthcheck.sh --connect --innodb_initialized"
           --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
@@ -48,10 +48,10 @@ jobs:
           TEST_DB_PASS: bookspot
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -60,7 +60,7 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: frontend-build
           path: |
@@ -74,17 +74,17 @@ jobs:
   # Ready-to-upload bundle for shared hosting (FTP): includes vendor/ and the built frontend.
   bundle:
     needs: [php, frontend]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
       - run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: frontend-build
           path: public
@@ -94,12 +94,12 @@ jobs:
           cp -r backend public vendor var .htaccess .env.example composer.json README.md LICENSE dist/bookspot/
           rm -rf dist/bookspot/var/*.sqlite dist/bookspot/var/sessions
           cd dist && zip -qr bookspot.zip bookspot
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bookspot-bundle
           path: dist/bookspot.zip
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/bookspot.zip
