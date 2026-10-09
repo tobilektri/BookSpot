@@ -1,6 +1,14 @@
-# Apache config for the document root (shared hosting). Point your domain to this "public" folder.
+# Apache config for the document root (shared hosting). The domain may point to this
+# "public" folder or to the project folder (see ../.htaccess).
 Options -Indexes
 DirectoryIndex index.html
+
+# Own rewrite context: stops the forwarding rules of ../.htaccess from applying here.
+# Shared hosts usually allow .htaccess in the whole web space, so with the domain pointing
+# to public/ Apache would otherwise rewrite every request to public/public/… (404).
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+</IfModule>
 
 <IfModule mod_mime.c>
     AddType application/manifest+json .webmanifest

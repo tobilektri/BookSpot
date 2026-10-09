@@ -104,6 +104,11 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
   (`Alias /icons/` – greift noch vor jeder `.htaccess`), dann fehlen die App-Icons, Chrome bietet
   keine Installation an und der Service Worker startet nicht. Seit Version 1.1 liegen die Icons
   unter `/app-icons/` – nach einem Update den alten Ordner `public/icons` einfach löschen.
+- **404 „The requested URL was not found“, wenn die Domain auf `public/` zeigt:** Bis Version 1.1
+  galten die Weiterleitungsregeln aus der `.htaccess` des Projektordners auch innerhalb von
+  `public/` (Apache liest die `.htaccess` aller übergeordneten Ordner, wenn der Hoster das erlaubt)
+  und zeigten auf `public/public/…`. Seit Version 1.1.1 hat `public/.htaccess` einen eigenen
+  Rewrite-Kontext; Projektordner, `public/` und Unterordner-Installationen funktionieren.
 - **Nach dem Leeren der Datenbank** werden die Tabellen beim nächsten Aufruf automatisch neu
   angelegt und die Ersteinrichtung erscheint wieder.
 

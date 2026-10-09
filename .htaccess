@@ -9,6 +9,8 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule ^(backend|vendor|var|tests|frontend|docker|node_modules)(/|$) - [F,L]
-    RewriteCond %{REQUEST_URI} !/public/
+    # Forward to public/ unless the request is already there. Matching the path relative
+    # to this folder (not REQUEST_URI) keeps this correct in sub-directory installs, too.
+    RewriteRule ^public(/|$) - [L]
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
