@@ -9,9 +9,9 @@ const props = defineProps({
 
 const failed = ref(false)
 const loaded = ref(false)
-const src = computed(() => (failed.value ? null : coverUrl(props.book, props.size === 'lg' ? 'L' : 'M')))
+const src = computed(() => (failed.value ? null : coverUrl(props.book)))
 watch(
-  () => [props.book?.id, props.book?.cover_version],
+  () => [props.book?.id, props.book?.cover_version, props.book?.cover_url, props.book?.isbn13],
   () => {
     failed.value = false
     loaded.value = false

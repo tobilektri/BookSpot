@@ -21,11 +21,12 @@ DirectoryIndex index.html
 </FilesMatch>
 
 <IfModule mod_headers.c>
+    # img-src 'self': covers are always delivered by api/cover.php, never hotlinked.
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "same-origin"
     Header always set X-Frame-Options "DENY"
     Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=()"
-    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' https: data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 
     <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
         Header set Cache-Control "no-cache"

@@ -126,4 +126,35 @@ final class CoverServiceTest extends TestCase
         $this->books->delete($book['id']);
         self::assertFileDoesNotExist($path, 'deleted with the book');
     }
+
+    public function testOnlyPublicHostsAreFetched(): void
+    {
+        foreach ([
+            'http://127.0.0.1/cover.jpg', 'http://localhost:8080/x.png', 'http://10.0.0.5/x.png', 'http://192.168.1.10/x.png',
+            'http://172.16.0.1/x.png', 'http://169.254.169.254/latest/meta-data/', 'http://[::1]/x.png', 'http://0.0.0.0/',
+            'ftp://93.184.215.14/x.png', 'file:///etc/passwd', 'http://user:pass@93.184.215.14/x.png', 'not a url',
+        ] as $url) {
+            self::assertNull(CoverService::publicTarget($url), $url);
+        }
+        self::assertSame(['host' => '93.184.215.14', 'port' => 443, 'ip' => '93.184.215.14'], CoverService::publicTarget('https://93.184.215.14/cover.jpg'));
+
+        // A blocked target counts as "no cover", not as a temporary error.
+        $book = $this->books->create(['title' => 'Intern', 'cover_url' => 'http://127.0.0.1:8081/secret.png'], $this->user['id']);
+        self::assertNull((new CoverService($this->db))->ensure($book['id']));
+        self::assertSame('none', $this->db->value('SELECT cover_status FROM books WHERE id = ?', [$book['id']]));
+    }
+
+    public function testPreviewIsFetchedButNotStored(): void
+    {
+        $calls = [];
+        $service = new CoverService($this->db, function (string $url) use (&$calls) {
+            $calls[] = $url;
+            return str_contains($url, 'openlibrary') ? ['status' => 200, 'body' => self::png(80, 120)] : ['status' => 404, 'body' => null];
+        });
+        $preview = $service->preview('https://example.org/missing.jpg', '9783548283951');
+        self::assertSame('image/png', $preview['mime']);
+        self::assertSame(['https://example.org/missing.jpg', 'https://covers.openlibrary.org/b/isbn/9783548283951-M.jpg?default=false'], $calls);
+        self::assertSame([], glob(CoverService::dir() . '/*') ?: []);
+        self::assertNull($service->preview('javascript:alert(1)', 'nope'));
+    }
 }

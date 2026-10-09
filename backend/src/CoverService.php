@@ -244,37 +244,113 @@ final class CoverService
         return @file_put_contents("$dir/$bookId.$ext", $body) === false ? null : "$bookId.$ext";
     }
 
-    /** @return array{status: int, body: ?string} status 0 = network error */
-    private function download(string $url): array
+    /**
+     * Image for the form preview of a book that is not saved yet (cover URL or
+     * ISBN typed in). Fetched through the server so the browser never loads
+     * external images; nothing is stored.
+     *
+     * @return array{body: string, mime: string}|null
+     */
+    public function preview(?string $url, ?string $isbn13): ?array
+    {
+        $candidates = [];
+        if ($url !== null && preg_match('#^https?://#i', $url)) {
+            $candidates[] = $url;
+        }
+        if ($isbn13 !== null && preg_match('/^97[89]\d{10}$/', $isbn13)) {
+            $candidates[] = 'https://covers.openlibrary.org/b/isbn/' . $isbn13 . '-M.jpg?default=false';
+        }
+        foreach ($candidates as $candidate) {
+            $response = $this->download($candidate);
+            if ($response['status'] !== 200 || $response['body'] === null || strlen($response['body']) > self::MAX_BYTES) {
+                continue;
+            }
+            $info = @getimagesizefromstring($response['body']);
+            if ($info !== false && $info[0] >= 20 && $info[1] >= 20 && in_array($info['mime'] ?? '', self::MIME, true)) {
+                return ['body' => $response['body'], 'mime' => $info['mime']];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Only public internet hosts may be fetched: a cover URL is user input, and
+     * without this check the server could be made to request internal services
+     * (SSRF: 127.0.0.1, 10.x, 192.168.x, cloud metadata 169.254.169.254, …).
+     * Returns the resolved public IP, or null when the URL must not be fetched.
+     */
+    public static function publicTarget(string $url): ?array
+    {
+        $parts = parse_url($url);
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = trim((string) ($parts['host'] ?? ''), '[]');
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '' || isset($parts['user']) || isset($parts['pass'])) {
+            return null;
+        }
+        $port = (int) ($parts['port'] ?? ($scheme === 'https' ? 443 : 80));
+        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+        if ($ips === []) {
+            return null;
+        }
+        if (!Config::bool('COVER_ALLOW_PRIVATE_HOSTS', false)) {
+            foreach ($ips as $ip) {
+                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    return null;
+                }
+            }
+        }
+        return ['host' => $host, 'port' => $port, 'ip' => $ips[0]];
+    }
+
+    /** @return array{status: int, body: ?string} status 0 = network error, -1 = blocked target */
+    private function download(string $url, int $redirects = 3): array
     {
         if ($this->httpGet !== null) {
             return ($this->httpGet)($url);
+        }
+        $target = self::publicTarget($url);
+        if ($target === null) {
+            return ['status' => -1, 'body' => null];
         }
         $userAgent = 'BookSpot/' . App::VERSION . ' (self-hosted book inventory)';
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_MAXREDIRS => 4,
+                CURLOPT_FOLLOWLOCATION => false, // redirects are checked one by one below
+                CURLOPT_HEADER => false,
                 CURLOPT_CONNECTTIMEOUT => 4,
                 CURLOPT_TIMEOUT => 10,
                 CURLOPT_USERAGENT => $userAgent,
                 CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-                CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                // Connect to the IP that was checked (no DNS rebinding between check and request).
+                CURLOPT_RESOLVE => [$target['host'] . ':' . $target['port'] . ':' . $target['ip']],
             ]);
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $location = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
             curl_close($ch);
+            if ($status >= 300 && $status < 400 && $location !== '') {
+                return $redirects > 0 ? $this->download($location, $redirects - 1) : ['status' => -1, 'body' => null];
+            }
             return ['status' => is_string($body) ? $status : 0, 'body' => is_string($body) ? $body : null];
         }
-        $context = stream_context_create(['http' => ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'ignore_errors' => true]]);
+        $context = stream_context_create(['http' => ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'ignore_errors' => true, 'follow_location' => 0]]);
         $body = @file_get_contents($url, false, $context);
         $status = 0;
+        $location = '';
         foreach ($http_response_header ?? [] as $header) {
             if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m)) {
                 $status = (int) $m[1];
+            } elseif (stripos($header, 'Location:') === 0) {
+                $location = trim(substr($header, 9));
             }
+        }
+        if ($status >= 300 && $status < 400 && $location !== '') {
+            if (!preg_match('#^https?://#i', $location)) {
+                $location = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST) . '/' . ltrim($location, '/');
+            }
+            return $redirects > 0 ? $this->download($location, $redirects - 1) : ['status' => -1, 'body' => null];
         }
         return ['status' => $body === false ? 0 : $status, 'body' => $body === false ? null : $body];
     }

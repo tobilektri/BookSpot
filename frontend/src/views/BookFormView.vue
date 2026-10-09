@@ -47,6 +47,16 @@ const lookupState = ref('') // '', 'loading', 'found', 'none'
 const lookupSource = ref('')
 const loaded = ref(!props.id)
 
+// Unchanged cover of a saved book: show the stored copy; otherwise a server-side preview.
+const savedCover = ref(null) // { id, cover_version, has_cover, cover_url, isbn13 } when editing
+const previewBook = computed(() => {
+  const base = { title: form.title || '?', authors: form.authors }
+  const isbn13 = normalizeIsbn(form.isbn)
+  const unchanged = savedCover.value && (form.cover_url || null) === (savedCover.value.cover_url || null) && isbn13 === savedCover.value.isbn13
+  if (unchanged) return { ...base, id: savedCover.value.id, cover_version: savedCover.value.cover_version, has_cover: savedCover.value.has_cover }
+  return { ...base, cover_url: form.cover_url, isbn13 }
+})
+
 const genreOptions = computed(() => [...new Set(catalog.value.map((b) => b.genre).filter(Boolean))].sort())
 
 onMounted(async () => {
@@ -60,6 +70,7 @@ onMounted(async () => {
       }
       if (book.entry_type !== 'library_loan' && !book.loan_due) form.loan_due = ''
       location.value = { shelf_id: book.shelf_id, shelf_col: book.shelf_col, shelf_row: book.shelf_row }
+      savedCover.value = { id: book.id, cover_version: book.cover_version, has_cover: book.has_cover, cover_url: book.cover_url, isbn13: book.isbn13 }
     } catch (e) {
       toast(errorMessage(e), 'error')
     } finally {
@@ -175,7 +186,7 @@ const types = computed(() => [
         </div>
 
         <div class="flex gap-4">
-          <BookCover :book="{ title: form.title || '?', authors: form.authors, cover_url: form.cover_url, isbn13: normalizeIsbn(form.isbn) }" />
+          <BookCover :book="previewBook" />
           <div class="flex-1 space-y-3">
             <div>
               <label class="label" for="title">{{ t('book.title') }} *</label>

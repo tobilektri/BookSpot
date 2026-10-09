@@ -24,18 +24,21 @@ export function todayIso(offsetDays = 0) {
 }
 
 /**
- * Cover URL. Saved books use the locally stored copy (api/cover.php downloads it
- * once on the server); only unsaved books in the form preview point to the source.
+ * Cover URL – always on our own server, never an external host (the CSP only
+ * allows img-src 'self'). Saved books use the locally stored copy; the form
+ * preview of an unsaved/changed cover is fetched through the server.
  */
-export function coverUrl(book, size = 'M') {
+export function coverUrl(book) {
   if (!book) return null
   if (book.id) {
     if (book.has_cover === false) return null // known: no cover anywhere -> placeholder without request
     return new URL(`api/cover.php?id=${book.id}&v=${book.cover_version ?? ''}`, document.baseURI).href
   }
-  if (book.cover_url) return book.cover_url
-  if (book.isbn13) return `https://covers.openlibrary.org/b/isbn/${book.isbn13}-${size}.jpg?default=false`
-  return null
+  const params = new URLSearchParams({ preview: '1' })
+  if (book.cover_url) params.set('url', book.cover_url)
+  else if (book.isbn13) params.set('isbn', book.isbn13)
+  else return null
+  return new URL(`api/cover.php?${params}`, document.baseURI).href
 }
 
 /** Stable pastel-ish colour for book spines / placeholders. */
