@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { coverUrl, bookColor } from '../lib/format.js'
 
 const props = defineProps({
@@ -7,16 +7,26 @@ const props = defineProps({
   size: { type: String, default: 'md' }, // sm | md | lg
 })
 
+const img = ref(null)
 const failed = ref(false)
 const loaded = ref(false)
-const src = computed(() => (failed.value ? null : coverUrl(props.book)))
-watch(
-  () => [props.book?.id, props.book?.cover_version, props.book?.cover_url, props.book?.isbn13],
-  () => {
-    failed.value = false
-    loaded.value = false
-  },
-)
+// Reset only when the image address really changes. Book objects are replaced on every
+// catalogue refresh (cached copy first, then the server's); resetting on that left covers
+// that had already loaded invisible, because the unchanged <img> fires no second load event.
+const url = computed(() => coverUrl(props.book))
+const src = computed(() => (failed.value ? null : url.value))
+watch(url, () => {
+  failed.value = false
+  loaded.value = false
+  nextTick(checkComplete)
+})
+onMounted(checkComplete)
+
+/** An image served from cache can be complete before the load listener runs. */
+function checkComplete() {
+  const el = img.value
+  if (el?.complete && el.naturalWidth > 0) loaded.value = true
+}
 
 const sizeClass = computed(() => ({ sm: 'w-10 h-14 text-[8px]', md: 'w-16 h-24 text-[10px]', lg: 'w-32 h-48 sm:w-40 sm:h-60 text-sm' })[props.size])
 </script>
@@ -30,6 +40,7 @@ const sizeClass = computed(() => ({ sm: 'w-10 h-14 text-[8px]', md: 'w-16 h-24 t
     </div>
     <img
       v-if="src"
+      ref="img"
       :src="src"
       :alt="book.title"
       loading="lazy"
