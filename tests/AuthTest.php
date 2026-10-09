@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BookSpot\Tests;
 
 use BookSpot\ApiException;
+use BookSpot\App;
 use BookSpot\Auth;
 use BookSpot\Config;
 
@@ -70,5 +71,44 @@ final class AuthTest extends TestCase
         $updated = $auth->updateProfile($user['id'], ['locale' => 'en', 'current_password' => 'long-password', 'new_password' => 'even-longer-password']);
         self::assertSame('en', $updated['locale']);
         self::assertSame('anna', $auth->attemptLogin('anna', 'even-longer-password', '1.1.1.1')['username']);
+    }
+
+    /** Emptying or dropping the database must lead back to the first-run setup, not to errors. */
+    public function testSchemaIsRecreatedAfterDatabaseWasEmptiedOrDropped(): void
+    {
+        $auth = new Auth($this->db);
+        $auth->register('anna', 'anna@example.org', 'long-password');
+        $isMysql = $this->db->driver() === 'mysql';
+        $tables = ['notification_log', 'push_subscriptions', 'user_books', 'books', 'shelves', 'login_attempts', 'settings', 'users'];
+
+        // 1) Everything emptied incl. the migration log (phpMyAdmin "Leeren"/TRUNCATE).
+        foreach ([...$tables, 'schema_migrations'] as $table) {
+            $this->db->run($isMysql ? "DELETE FROM `$table`" : "DELETE FROM $table");
+        }
+        App::ensureSchema($this->db);
+        self::assertTrue($auth->registrationOpen(), 'first-run setup again');
+
+        // 2) Data tables dropped, migration log kept.
+        $this->dropTables($tables);
+        App::ensureSchema($this->db);
+        self::assertSame(0, $auth->userCount());
+        self::assertSame('admin', $auth->register('neu', 'neu@example.org', 'long-password')['role']);
+
+        // 3) Everything dropped.
+        $this->dropTables([...$tables, 'schema_migrations']);
+        App::ensureSchema($this->db);
+        self::assertSame(0, $auth->userCount());
+        self::assertNotNull($this->db->value("SELECT version FROM schema_migrations WHERE version = '003_user_role'"));
+    }
+
+    /** @param list<string> $tables */
+    private function dropTables(array $tables): void
+    {
+        $isMysql = $this->db->driver() === 'mysql';
+        $this->db->pdo()->exec($isMysql ? 'SET FOREIGN_KEY_CHECKS = 0' : 'PRAGMA foreign_keys = OFF');
+        foreach ($tables as $table) {
+            $this->db->pdo()->exec("DROP TABLE IF EXISTS $table");
+        }
+        $this->db->pdo()->exec($isMysql ? 'SET FOREIGN_KEY_CHECKS = 1' : 'PRAGMA foreign_keys = ON');
     }
 }

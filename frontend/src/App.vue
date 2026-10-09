@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { House, BookOpen, ScanBarcode, LibraryBig, ChartColumn, Settings, WifiOff, RefreshCw } from '@lucide/vue'
 import { store } from './lib/store.js'
 import { t, appName } from './lib/i18n.js'
@@ -9,6 +9,15 @@ import ToastStack from './components/ToastStack.vue'
 import EngagementPrompts from './components/EngagementPrompts.vue'
 
 const route = useRoute()
+const router = useRouter()
+
+// Session ended while the app was open (401 from the API): go to the login page right away.
+watch(
+  () => store.user,
+  (user) => {
+    if (!user && store.ready && !route.meta.public) router.replace({ name: 'login', query: { next: route.fullPath } })
+  },
+)
 const showChrome = computed(() => store.user && route.name !== 'login')
 
 const nav = computed(() => [

@@ -1,10 +1,10 @@
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api, ApiError } from '../lib/api.js'
 import { store } from '../lib/store.js'
 import { t, errorMessage, fieldError, locale, setLocale, appName } from '../lib/i18n.js'
-import { rememberUser } from '../lib/session.js'
+import { rememberUser, refreshStatus } from '../lib/session.js'
 import { invalidateCatalog } from '../lib/catalog.js'
 import logoUrl from '../assets/logo.svg'
 
@@ -16,6 +16,18 @@ const errors = ref({})
 const error = ref('')
 const busy = ref(false)
 const canRegister = computed(() => store.registrationOpen || store.needsSetup)
+
+// The status may be stale (app was open while the database was emptied): reload it,
+// so a fresh installation always shows the first-run setup.
+onMounted(async () => {
+  try {
+    await refreshStatus()
+    if (store.user) router.replace(typeof route.query.next === 'string' ? route.query.next : '/')
+    else if (store.needsSetup) mode.value = 'register'
+  } catch {
+    /* offline: keep the form */
+  }
+})
 
 async function submit() {
   busy.value = true

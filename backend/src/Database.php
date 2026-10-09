@@ -188,12 +188,28 @@ final class Database
             $sql = (string) file_get_contents($file);
             // MySQL DDL auto-commits, so we run statement by statement without a transaction.
             foreach (self::splitSql($sql) as $statement) {
-                $this->pdo->exec($statement);
+                try {
+                    $this->pdo->exec($statement);
+                } catch (\PDOException $e) {
+                    // Re-running a migration whose changes already exist (e.g. after the
+                    // schema_migrations table was emptied) must not break the app.
+                    if (!self::isAlreadyAppliedError($e)) {
+                        throw $e;
+                    }
+                }
             }
             $this->insert('schema_migrations', ['version' => $version, 'applied_at' => gmdate('Y-m-d H:i:s')]);
             $applied[] = $version;
         }
         return $applied;
+    }
+
+    /** "Table/column/index already exists" – MySQL 1050/1060/1061, SQLite messages. */
+    private static function isAlreadyAppliedError(\PDOException $e): bool
+    {
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+        return in_array($driverCode, [1050, 1060, 1061], true)
+            || (bool) preg_match('/duplicate column name|already exists/i', $e->getMessage());
     }
 
     /** @return list<string> */

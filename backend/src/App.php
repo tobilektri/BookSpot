@@ -43,20 +43,34 @@ final class App
     }
 
     /**
-     * Runs migrations when needed. A marker file in var/ avoids hitting the
-     * migrations table on every request once the schema is current.
+     * Runs migrations when needed. Checked against the database itself on every
+     * request (one primary-key lookup), so an emptied or dropped database is
+     * recreated automatically and the app starts with the first-run setup again.
      */
     public static function ensureSchema(Database $db): void
     {
         $migrationsDir = self::root() . '/backend/migrations';
         $files = glob($migrationsDir . '/*/*.sql') ?: [];
-        $latest = $files === [] ? '' : max(array_map(fn ($f) => basename($f, '.sql'), $files));
-        $marker = self::varDir() . '/schema-' . $db->driver() . '-' . substr(sha1((string) Config::get('DB_NAME') . Config::get('DB_SQLITE_PATH')), 0, 8);
-        if (is_file($marker) && trim((string) @file_get_contents($marker)) === $latest) {
+        if ($files === []) {
             return;
         }
+        $latest = max(array_map(fn ($f) => basename($f, '.sql'), $files));
+        try {
+            $current = $db->value('SELECT version FROM schema_migrations WHERE version = ?', [$latest]) !== null;
+        } catch (\PDOException) {
+            $current = false; // schema_migrations missing: fresh or dropped database
+        }
+        if ($current) {
+            try {
+                $db->run('SELECT 1 FROM users LIMIT 1');
+                return;
+            } catch (\PDOException) {
+                // Data tables were dropped but the migration log survived: replay everything.
+                // Migrations tolerate objects that already exist (Database::migrate()).
+                $db->run('DELETE FROM schema_migrations');
+            }
+        }
         $db->migrate($migrationsDir);
-        @file_put_contents($marker, $latest);
     }
 
     public static function timezone(): \DateTimeZone

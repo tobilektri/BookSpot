@@ -7,16 +7,33 @@ import { flushQueue } from './sync.js'
 /** Loads auth status once at app start (works offline via the SW cache). */
 export async function bootstrap() {
   try {
-    const status = await api('auth.php', { query: { action: 'status' } })
-    applyStatus(status)
+    await refreshStatus()
   } catch (e) {
-    // Offline and nothing cached: let the user in with the last known identity.
-    const lastUser = JSON.parse(localStorage.getItem('bookspot.user') || 'null')
-    store.user = lastUser
+    // Only when the server is unreachable we keep the last known identity (offline use).
+    // A server error must not pretend a valid session.
+    store.user = e?.code === 'offline' ? lastKnownUser() : null
   } finally {
     store.ready = true
   }
   if (store.user) flushQueue()
+}
+
+/** Fetches the auth status (also used by the login page to detect a fresh/emptied database). */
+export async function refreshStatus() {
+  const status = await api('auth.php', { query: { action: 'status' } })
+  // The server no longer knows this session (logged out elsewhere, account deleted,
+  // database emptied): drop locally cached data of the previous user.
+  if (!status.user && lastKnownUser()) await clearLocalData()
+  applyStatus(status)
+  return status
+}
+
+function lastKnownUser() {
+  try {
+    return JSON.parse(localStorage.getItem('bookspot.user') || 'null')
+  } catch {
+    return null
+  }
 }
 
 export function applyStatus(status) {
@@ -46,8 +63,13 @@ export function rememberUser(user) {
 export async function logout() {
   await api('auth.php', { method: 'POST', query: { action: 'logout' } }).catch(() => {})
   rememberUser(null)
-  // Personal data must not stay on a shared device.
+  await clearLocalData()
+}
+
+/** Personal data and pending offline changes must not survive a logout / ended session. */
+async function clearLocalData() {
   try {
+    localStorage.removeItem('bookspot.user')
     await db.books.clear()
     await db.queue.clear()
     await db.meta.clear()
