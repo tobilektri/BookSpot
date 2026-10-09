@@ -20,7 +20,10 @@ jobs:
         db: [sqlite, mariadb]
     services:
       mariadb:
-        image: mariadb:11.4
+        # Official image via the AWS ECR Public mirror: anonymous pulls from
+        # Docker Hub on shared runners regularly fail with 429 (rate limit).
+        # Only started for the MariaDB jobs (an empty image skips the service).
+        image: ${{ matrix.db == 'mariadb' && 'public.ecr.aws/docker/library/mariadb:11.4' || '' }}
         env:
           MARIADB_ROOT_PASSWORD: root
           MARIADB_DATABASE: bookspot_test
