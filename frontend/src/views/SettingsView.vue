@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { LogOut, Download, Upload, Bell, User, Users, Info, Smartphone } from '@lucide/vue'
+import { LogOut, Download, Upload, Bell, User, Users, Info, Smartphone, Clock } from '@lucide/vue'
 import { api, ApiError } from '../lib/api.js'
 import { t, errorMessage, fieldError, locale, setLocale, appName } from '../lib/i18n.js'
 import { store, toast } from '../lib/store.js'
@@ -9,19 +9,17 @@ import { logout, rememberUser } from '../lib/session.js'
 import ImportPanel from '../components/ImportPanel.vue'
 import PushPanel from '../components/PushPanel.vue'
 import EnrichButton from '../components/EnrichButton.vue'
+import UserAdmin from '../components/UserAdmin.vue'
+import CronInfo from '../components/CronInfo.vue'
 
 const router = useRouter()
 const route = useRoute()
 const profile = reactive({ email: store.user?.email ?? '', locale: store.user?.locale ?? locale.value, current_password: '', new_password: '' })
 const errors = ref({})
-const users = ref([])
 const installPrompt = ref(null)
 
 onMounted(async () => {
   if (route.hash) nextTick(() => document.querySelector(route.hash)?.scrollIntoView({ behavior: 'smooth' }))
-  if (store.user?.role === 'admin') {
-    users.value = (await api('auth.php', { query: { action: 'users' } }).catch(() => ({ users: [] }))).users
-  }
 })
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -57,7 +55,7 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
     <h1 class="font-serif text-2xl font-semibold">{{ t('settings.title') }}</h1>
 
     <section class="card space-y-3">
-      <h2 class="flex items-center gap-2 font-semibold"><User class="h-5 w-5 text-brand-600" />{{ t('settings.profile') }} · {{ store.user?.username }}</h2>
+      <h2 class="flex items-center gap-2 font-semibold"><User class="h-5 w-5 text-brand-600" />{{ t('settings.profile') }} · {{ store.user?.username }} <span class="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-normal dark:bg-stone-800">{{ t(`users.role_${store.user?.role}`) }}</span></h2>
       <form class="grid gap-3 sm:grid-cols-2" @submit.prevent="saveProfile">
         <div>
           <label class="label" for="email">{{ t('auth.email') }}</label>
@@ -103,15 +101,16 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
       <PushPanel />
     </section>
 
-    <section v-if="users.length" class="card">
-      <h2 class="mb-2 flex items-center gap-2 font-semibold"><Users class="h-5 w-5 text-brand-600" />{{ t('settings.users') }}</h2>
-      <ul class="divide-y divide-stone-100 text-sm dark:divide-stone-800">
-        <li v-for="u in users" :key="u.id" class="flex justify-between py-1.5">
-          <span>{{ u.username }} <span class="text-stone-500">· {{ u.email }}</span></span>
-          <span class="text-xs text-stone-500">{{ t(`settings.role_${u.role}`) }}</span>
-        </li>
-      </ul>
-    </section>
+    <template v-if="store.user?.role === 'admin'">
+      <section id="users" class="card scroll-mt-20">
+        <h2 class="mb-2 flex items-center gap-2 font-semibold"><Users class="h-5 w-5 text-brand-600" />{{ t('users.title') }}</h2>
+        <UserAdmin />
+      </section>
+      <section class="card">
+        <h2 class="mb-2 flex items-center gap-2 font-semibold"><Clock class="h-5 w-5 text-brand-600" />{{ t('cron.title') }}</h2>
+        <CronInfo />
+      </section>
+    </template>
 
     <section class="card space-y-3 text-sm">
       <h2 class="flex items-center gap-2 font-semibold"><Info class="h-5 w-5 text-brand-600" />{{ t('settings.about') }}</h2>

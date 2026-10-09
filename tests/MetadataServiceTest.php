@@ -113,12 +113,13 @@ final class MetadataServiceTest extends TestCase
     {
         $calls = [];
         $dnb = (string) file_get_contents(__DIR__ . '/fixtures/dnb_9783548283951.xml');
-        $service = new MetadataService($this->db, function (string $url) use (&$calls, $dnb) {
+        $blurb = (string) file_get_contents(__DIR__ . '/fixtures/dnb_blurb_1011687097.html');
+        $service = new MetadataService($this->db, function (string $url) use (&$calls, $dnb, $blurb) {
             $calls[] = (string) parse_url($url, PHP_URL_HOST);
             return match (true) {
                 str_contains($url, 'openlibrary.org') => self::OPEN_LIBRARY_SPARSE,
                 str_contains($url, '/sru/dnb') => $dnb,
-                str_contains($url, '/blurb/') => '<html><body><h1>Inhaltstext</h1><p>Ein Meteorit rast auf die Erde zu &amp; nur wenige wissen davon.</p></body></html>',
+                str_contains($url, '/blurb/') => $blurb,
                 default => '{"kind": "books#volumes", "totalItems": 0}',
             };
         });
@@ -130,7 +131,9 @@ final class MetadataServiceTest extends TestCase
         self::assertSame(518, $meta['pages']);
         self::assertSame(2012, $meta['published_year']);
         self::assertSame('Spannung', $meta['genre']);
-        self::assertSame("Inhaltstext\nEin Meteorit rast auf die Erde zu & nur wenige wissen davon.", $meta['description']);
+        self::assertStringStartsWith('Mit Erfrierungen und unerklärlichen Kopfschmerzen', $meta['description']);
+        self::assertStringEndsWith('vernichtet zu werden.', $meta['description']);
+        self::assertStringNotContainsString('<', $meta['description']);
         self::assertSame(['open_library', 'dnb'], $meta['sources']);
         self::assertFalse($meta['partial']);
         self::assertNotContains('www.googleapis.com', $calls, 'Google is not asked when nothing is missing');

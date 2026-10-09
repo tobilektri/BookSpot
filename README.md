@@ -75,17 +75,20 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
    *Ziel/Verzeichnis* ändern). Geht das nicht, leitet die mitgelieferte `.htaccess` im
    Projektordner auf `public/` um und sperrt `backend/`, `vendor/`, `var/` und `.env`.
 4. **Datenbank anlegen** (Zeichensatz `utf8mb4`) und `.env.example` als `.env` kopieren:
-   `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `APP_URL`, `CRON_TOKEN` eintragen.
+   `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` und `APP_URL` eintragen.
    Für vollständige Buchdaten zusätzlich einen kostenlosen `GOOGLE_BOOKS_API_KEY`
    ([Anleitung](docs/google-books-api-key.md)).
    Ohne MySQL geht auch `DB_DRIVER=sqlite`.
 5. Ordner `var/` beschreibbar machen (Sessions, Logs, SQLite).
 6. Seite aufrufen → **erstes Konto anlegen** (wird Admin). Die Tabellen werden automatisch erstellt.
-   Weitere Konten: `ALLOW_REGISTRATION=true` oder `php backend/bin/create-user.php`.
-7. **Cronjob** (stündlich, für Push-Erinnerungen und Metadaten):
-   `https://deine-domain.tld/api/cron.php?token=<CRON_TOKEN>` – über die Cronjob-Funktion des
-   Hosters oder einen externen Dienst wie cron-job.org. Mehrfachaufrufe sind unkritisch, jede
-   Erinnerung wird nur einmal verschickt.
+   Weitere Konten legen Admins unter *Einstellungen → Benutzerverwaltung* an – mit der Rolle
+   **Admin** (darf Benutzer verwalten) oder **Benutzer** (darf es nicht). Optional:
+   Selbst-Registrierung mit `ALLOW_REGISTRATION=true`, oder per CLI `php backend/bin/create-user.php`.
+7. **Cronjob** (stündlich, für Push-Erinnerungen und Metadaten): Die fertige URL mit Token steht
+   für Admins unter *Einstellungen → Cronjob* (der Token wird automatisch erzeugt; ein fester
+   Token kann als `CRON_TOKEN` in der `.env` gesetzt werden). Aufrufen lassen über die
+   Cronjob-Funktion des Hosters oder einen externen Dienst wie cron-job.org. Mehrfachaufrufe sind
+   unkritisch, jede Erinnerung wird nur einmal verschickt.
 
 `public/.user.ini` setzt Upload-Limit (16 MB) und Laufzeit für den CSV-Import.
 
@@ -94,7 +97,7 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
 ## Docker
 
 ```bash
-cp .env.example .env          # DB_PASS, DB_ROOT_PASS, CRON_TOKEN, APP_URL anpassen
+cp .env.example .env          # DB_PASS, DB_ROOT_PASS, APP_URL anpassen
 docker compose up -d --build
 # → http://localhost:8080
 ```
@@ -142,6 +145,8 @@ Lesedaten zu übernehmen. Weitere zu ignorierende Genre-Werte: `IMPORT_GENRE_BLO
 | Endpunkt | Beschreibung |
 |---|---|
 | `GET api/auth.php?action=status` · `POST …?action=login/register/logout/profile` | Sitzung |
+| `GET/POST/PUT/DELETE api/users.php[?id=]` | Benutzerverwaltung (Rollen `admin`/`user`; Ändern nur für Admins) |
+| `GET api/admin.php` · `POST …?action=regenerate_cron_token` | Admin: Cron-URL-Token, Systeminfo |
 | `GET api/books.php?isbn=…` | Katalog-Suche per ISBN (`{found, book}`) |
 | `GET/POST/PUT/DELETE api/books.php[?id=]` | Bücher; `?action=move`, `due`, `genres`, `enrich` |
 | `GET/PUT api/user_books.php?book_id=` | persönliche Lesedaten |
@@ -151,7 +156,7 @@ Lesedaten zu übernehmen. Weitere zu ignorierende Genre-Werte: `IMPORT_GENRE_BLO
 | `GET api/stats.php?year=` | Statistik |
 | `POST api/sync.php` | Offline-Warteschlange abspielen |
 | `GET/POST api/push.php` | VAPID-Key, (De-)Abonnieren, Test |
-| `GET api/cron.php?token=` | Erinnerungen + Metadaten (Webcron) |
+| `GET api/cron.php?token=` | Erinnerungen + Metadaten (Webcron, Token siehe Einstellungen) |
 
 Schreibende Requests brauchen `X-Requested-With: BookSpot` und eine gültige Session.
 

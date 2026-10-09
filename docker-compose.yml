@@ -1,5 +1,5 @@
 # Production-ready stack: nginx + PHP 8.5-FPM + MariaDB + cron (reminders & metadata).
-#   cp .env.example .env   # set DB_PASS, DB_ROOT_PASS, CRON_TOKEN …
+#   cp .env.example .env   # set DB_PASS, DB_ROOT_PASS, APP_URL …
 #   docker compose up -d --build
 # App: http://localhost:8080 (put a TLS reverse proxy in front for the camera & push features).
 

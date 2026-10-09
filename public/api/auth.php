@@ -55,15 +55,6 @@ Api::run(function (Request $req) {
             }
             return ['user' => $auth->updateProfile($user['id'], $req->body)];
         })(),
-        'users' => (function () use ($auth) {
-            Auth::requireUser();
-            // Usernames only for members (e.g. to pick who borrowed a book); full list for admins.
-            $users = $auth->listUsers();
-            if (Auth::requireUser()['role'] !== 'admin') {
-                $users = array_map(fn ($u) => ['id' => $u['id'], 'username' => $u['username']], $users);
-            }
-            return ['users' => $users];
-        })(),
         default => throw new ApiException('unknown_action', 404),
     };
 });

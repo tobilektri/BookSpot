@@ -14,7 +14,7 @@ const de = {
   auth: {
     login: 'Anmelden', register: 'Registrieren', logout: 'Abmelden', username: 'Benutzername', email: 'E-Mail',
     password: 'Passwort', loginField: 'Benutzername oder E-Mail', setupTitle: 'Willkommen! Lege das erste Konto an.',
-    setupHint: 'Das erste Konto wird Administrator. Danach ist die Registrierung nur offen, wenn ALLOW_REGISTRATION=true gesetzt ist.',
+    setupHint: 'Das erste Konto wird Admin. Weitere Konten legst du danach unter Einstellungen → Benutzerverwaltung an.',
     noAccount: 'Noch kein Konto?', haveAccount: 'Schon registriert?', passwordHint: 'Mindestens 8 Zeichen',
   },
   dashboard: {
@@ -99,8 +99,26 @@ const de = {
     pushDenied: 'Benachrichtigungen wurden im Browser blockiert.', pushServerMissing: 'Push ist auf dem Server nicht verfügbar (Composer-Abhängigkeiten fehlen).',
     pushSent: 'Test gesendet an {n} Gerät(e).', metadataTitle: 'Metadaten ergänzen', metadataHint: 'Fehlende Cover, Beschreibungen, Verlage und Genres bei Open Library, der Deutschen Nationalbibliothek und Google Books nachschlagen.',
     metadataRun: 'Jetzt ergänzen', metadataDone: 'Fertig – {updated} Bücher ergänzt.', metadataRemaining: 'Noch {n} Bücher ungeprüft.', metadataUnavailable: 'Metadaten-Dienste nicht erreichbar oder Limit erreicht – später erneut versuchen.', metadataPartial: '{n} Bücher nur teilweise ergänzt, weil eine Quelle nicht erreichbar war (bei Google Books: API-Key in .env eintragen, siehe docs/google-books-api-key.md). Sie werden später erneut versucht.',
-    users: 'Benutzer', role_admin: 'Admin', role_member: 'Mitglied', about: 'Über', version: 'Version {v}', installApp: 'App installieren',
+    about: 'Über', version: 'Version {v}', installApp: 'App installieren',
     sourceCode: 'Open Source (MIT)',
+  },
+  users: {
+    title: 'Benutzerverwaltung', hint: 'Lege Konten für weitere Personen an. Alle sehen denselben Katalog, Lesedaten bleiben privat.',
+    new: 'Neuer Benutzer', create: 'Anlegen', role: 'Rolle', role_admin: 'Admin', role_user: 'Benutzer', you: 'du',
+    rolesHint: 'Admins können Benutzer anlegen, Rollen ändern, Passwörter zurücksetzen und Konten löschen. Benutzer können das nicht.',
+    initialPassword: 'Start-Passwort', created: 'Benutzer „{name}“ angelegt.', deleted: 'Benutzer „{name}“ gelöscht.',
+    deleteConfirm: 'Konto „{name}“ löschen? Die persönlichen Lesedaten dieses Kontos werden gelöscht, die Bücher im Katalog bleiben erhalten.',
+    demoteSelf: 'Dir selbst die Admin-Rolle entziehen? Danach kannst du keine Benutzer mehr verwalten.',
+    setPassword: 'Passwort setzen', setPasswordFor: 'Neues Passwort für {name}', passwordSet: 'Passwort für {name} geändert.',
+    lastLogin: 'zuletzt angemeldet {date}',
+  },
+  cron: {
+    title: 'Cronjob', url: 'Cron-URL', copy: 'Kopieren', copied: 'URL kopiert.',
+    hint: 'Diese URL stündlich aufrufen lassen (Cronjob des Hosters oder z. B. cron-job.org). Sie verschickt die Rückgabe-Erinnerungen und ergänzt Buchdaten.',
+    generated: 'Der Token wurde automatisch erzeugt. Alternativ kannst du CRON_TOKEN in der .env festlegen.',
+    fromConfig: 'Der Token stammt aus CRON_TOKEN in der .env.', docker: 'Mit Docker oder SSH stattdessen:',
+    regenerate: 'Neuen Token erzeugen', regenerated: 'Neuer Token erzeugt – Cronjob-URL beim Hoster aktualisieren!',
+    regenerateConfirm: 'Neuen Token erzeugen? Die bisherige URL funktioniert dann nicht mehr.',
   },
   sync: {
     done: '{n} Offline-Änderung(en) synchronisiert.', conflicts: '{n} Änderung(en) waren veraltet – neuere Daten vom Server behalten.',
@@ -115,6 +133,8 @@ const de = {
     csv_empty: 'Die CSV-Datei ist leer.', csv_too_large: 'Die Datei ist zu groß (max. 15 MB).', csv_missing_title_column: 'Keine Titel-Spalte gefunden. Ist das eine Bücher-CSV?',
     upload_failed: 'Upload fehlgeschlagen.', csrf_header_missing: 'Sicherheitsprüfung fehlgeschlagen. Bitte Seite neu laden.',
     method_not_allowed: 'Methode nicht erlaubt.', invalid_json: 'Ungültige Anfrage.', unknown_action: 'Unbekannte Aktion.',
+    user_not_found: 'Benutzer nicht gefunden.', last_admin: 'Es muss mindestens ein Admin bleiben.', cannot_delete_self: 'Du kannst dein eigenes Konto nicht löschen.',
+    cron_token_too_short: 'CRON_TOKEN in der .env ist zu kurz (mind. 16 Zeichen).', cron_token_from_config: 'Der Token ist in der .env festgelegt und kann hier nicht geändert werden.',
   },
   validation: {
     required: 'Pflichtfeld', invalid_isbn: 'Ungültige ISBN', invalid_url: 'Ungültige URL (http/https)', invalid_date: 'Ungültiges Datum',
@@ -142,7 +162,7 @@ const en = {
   auth: {
     login: 'Sign in', register: 'Create account', logout: 'Sign out', username: 'Username', email: 'Email', password: 'Password',
     loginField: 'Username or email', setupTitle: 'Welcome! Create the first account.',
-    setupHint: 'The first account becomes administrator. Afterwards registration is only open if ALLOW_REGISTRATION=true.',
+    setupHint: 'The first account becomes admin. Create further accounts afterwards under Settings → User management.',
     noAccount: 'No account yet?', haveAccount: 'Already registered?', passwordHint: 'At least 8 characters',
   },
   dashboard: {
@@ -226,8 +246,26 @@ const en = {
     pushDenied: 'Notifications are blocked in the browser.', pushServerMissing: 'Push is not available on the server (Composer dependencies missing).',
     pushSent: 'Test sent to {n} device(s).', metadataTitle: 'Fill in metadata', metadataHint: 'Look up missing covers, descriptions, publishers and genres on Open Library, the German National Library and Google Books.',
     metadataRun: 'Fill in now', metadataDone: 'Done – {updated} books updated.', metadataRemaining: '{n} books not checked yet.', metadataUnavailable: 'Metadata services unreachable or rate-limited – try again later.', metadataPartial: '{n} books only partially completed because a source was unreachable (Google Books: set an API key in .env, see docs/google-books-api-key.md). They will be retried later.',
-    users: 'Users', role_admin: 'Admin', role_member: 'Member', about: 'About', version: 'Version {v}', installApp: 'Install app',
+    about: 'About', version: 'Version {v}', installApp: 'Install app',
     sourceCode: 'Open source (MIT)',
+  },
+  users: {
+    title: 'User management', hint: 'Create accounts for other people. Everyone sees the same catalogue; reading data stays private.',
+    new: 'New user', create: 'Create', role: 'Role', role_admin: 'Admin', role_user: 'User', you: 'you',
+    rolesHint: 'Admins can create users, change roles, reset passwords and delete accounts. Users cannot.',
+    initialPassword: 'Initial password', created: 'User “{name}” created.', deleted: 'User “{name}” deleted.',
+    deleteConfirm: 'Delete account “{name}”? Its personal reading data is deleted, the books in the catalogue are kept.',
+    demoteSelf: 'Remove your own admin role? You will no longer be able to manage users.',
+    setPassword: 'Set password', setPasswordFor: 'New password for {name}', passwordSet: 'Password for {name} changed.',
+    lastLogin: 'last sign-in {date}',
+  },
+  cron: {
+    title: 'Cron job', url: 'Cron URL', copy: 'Copy', copied: 'URL copied.',
+    hint: 'Have this URL called hourly (your hoster’s cron jobs or e.g. cron-job.org). It sends due-date reminders and completes book data.',
+    generated: 'The token was generated automatically. Alternatively set CRON_TOKEN in .env.',
+    fromConfig: 'The token comes from CRON_TOKEN in .env.', docker: 'With Docker or SSH instead:',
+    regenerate: 'Generate new token', regenerated: 'New token generated – update the cron job URL at your hoster!',
+    regenerateConfirm: 'Generate a new token? The current URL will stop working.',
   },
   sync: {
     done: '{n} offline change(s) synced.', conflicts: '{n} change(s) were outdated – kept newer server data.',
@@ -241,6 +279,8 @@ const en = {
     csv_empty: 'The CSV file is empty.', csv_too_large: 'The file is too large (max. 15 MB).', csv_missing_title_column: 'No title column found. Is this a book CSV?',
     upload_failed: 'Upload failed.', csrf_header_missing: 'Security check failed. Please reload.', method_not_allowed: 'Method not allowed.',
     invalid_json: 'Invalid request.', unknown_action: 'Unknown action.',
+    user_not_found: 'User not found.', last_admin: 'At least one admin must remain.', cannot_delete_self: 'You cannot delete your own account.',
+    cron_token_too_short: 'CRON_TOKEN in .env is too short (min. 16 characters).', cron_token_from_config: 'The token is set in .env and cannot be changed here.',
   },
   validation: {
     required: 'Required', invalid_isbn: 'Invalid ISBN', invalid_url: 'Invalid URL (http/https)', invalid_date: 'Invalid date',

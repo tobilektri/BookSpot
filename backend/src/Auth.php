@@ -10,6 +10,10 @@ namespace BookSpot;
  */
 final class Auth
 {
+    public const ROLE_ADMIN = 'admin';
+    public const ROLE_USER = 'user';
+    public const ROLES = [self::ROLE_ADMIN, self::ROLE_USER];
+
     private const MAX_FAILED_LOGINS = 10;
     private const LOCKOUT_MINUTES = 15;
 
@@ -81,7 +85,7 @@ final class Auth
     public static function requireAdmin(): array
     {
         $user = self::requireUser();
-        if ($user['role'] !== 'admin') {
+        if ($user['role'] !== self::ROLE_ADMIN) {
             throw new ApiException('forbidden', 403);
         }
         return $user;
@@ -136,14 +140,40 @@ final class Auth
         return $user === null ? null : self::publicUser($user);
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * Self-registration: the very first account becomes admin, later ones are users
+     * (only while ALLOW_REGISTRATION=true; admins can always create accounts).
+     *
+     * @return array<string, mixed>
+     */
     public function register(string $username, string $email, string $password, string $locale = 'de', bool $force = false): array
     {
         if (!$force && !$this->registrationOpen()) {
             throw new ApiException('registration_closed', 403);
         }
-        $username = trim($username);
-        $email = trim(mb_strtolower($email));
+        return $this->createUser([
+            'username' => $username,
+            'email' => $email,
+            'password' => $password,
+            'locale' => $locale,
+            'role' => $this->userCount() === 0 ? self::ROLE_ADMIN : self::ROLE_USER,
+        ]);
+    }
+
+    /**
+     * Creates an account (admin user management and registration).
+     *
+     * @param array{username?: mixed, email?: mixed, password?: mixed, role?: mixed, locale?: mixed} $input
+     * @return array<string, mixed>
+     */
+    public function createUser(array $input): array
+    {
+        $username = trim((string) ($input['username'] ?? ''));
+        $email = trim(mb_strtolower((string) ($input['email'] ?? '')));
+        $password = (string) ($input['password'] ?? '');
+        $role = (string) ($input['role'] ?? self::ROLE_USER);
+        $locale = (string) ($input['locale'] ?? 'de');
+
         $errors = [];
         if (!preg_match('/^[\p{L}\p{N}._-]{3,50}$/u', $username)) {
             $errors['username'] = 'invalid_username';
@@ -153,6 +183,9 @@ final class Auth
         }
         if (mb_strlen($password) < 8) {
             $errors['password'] = 'password_too_short';
+        }
+        if (!in_array($role, self::ROLES, true)) {
+            $errors['role'] = 'invalid_choice';
         }
         if ($errors === []) {
             if ($this->db->value('SELECT id FROM users WHERE LOWER(username) = LOWER(?)', [$username]) !== null) {
@@ -170,11 +203,84 @@ final class Auth
             'username' => $username,
             'email' => $email,
             'password_hash' => self::hash($password),
-            'role' => $this->userCount() === 0 ? 'admin' : 'member',
+            'role' => $role,
             'locale' => in_array($locale, ['de', 'en'], true) ? $locale : 'de',
             'created_at' => App::nowString(),
         ]);
         return $this->findById($id) ?? throw new \LogicException('User vanished');
+    }
+
+    /**
+     * Admin changes to another account: role, email, new password.
+     * There must always be at least one admin left.
+     *
+     * @return array<string, mixed>
+     */
+    public function updateUser(int $actorId, int $id, array $input): array
+    {
+        return $this->db->transaction(function () use ($actorId, $id, $input) {
+            $row = $this->db->one('SELECT * FROM users WHERE id = ?', [$id]) ?? throw ApiException::notFound('user_not_found');
+            $update = [];
+            $errors = [];
+
+            if (array_key_exists('role', $input) && $input['role'] !== $row['role']) {
+                if (!in_array($input['role'], self::ROLES, true)) {
+                    $errors['role'] = 'invalid_choice';
+                } elseif ($row['role'] === self::ROLE_ADMIN && $this->adminCount() <= 1) {
+                    throw new ApiException('last_admin', 409);
+                } else {
+                    $update['role'] = $input['role'];
+                }
+            }
+            if (isset($input['email']) && trim((string) $input['email']) !== $row['email']) {
+                $email = trim(mb_strtolower((string) $input['email']));
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 100) {
+                    $errors['email'] = 'invalid_email';
+                } elseif ($this->db->value('SELECT id FROM users WHERE email = ? AND id <> ?', [$email, $id]) !== null) {
+                    $errors['email'] = 'email_taken';
+                } else {
+                    $update['email'] = $email;
+                }
+            }
+            if (!empty($input['password'])) {
+                if (mb_strlen((string) $input['password']) < 8) {
+                    $errors['password'] = 'password_too_short';
+                } else {
+                    $update['password_hash'] = self::hash((string) $input['password']);
+                }
+            }
+            if ($errors !== []) {
+                throw ApiException::validation($errors);
+            }
+            $this->db->update('users', $update, ['id' => $id]);
+            if (isset($update['role']) && $id === $actorId) {
+                self::$currentUser = null; // own role changed: reload on next access
+            }
+            return $this->findById($id) ?? throw ApiException::notFound('user_not_found');
+        });
+    }
+
+    /**
+     * Deletes an account incl. its personal reading data. Shared catalogue
+     * entries stay (created_by / loan_user_id are set to NULL).
+     */
+    public function deleteUser(int $actorId, int $id): void
+    {
+        $this->db->transaction(function () use ($actorId, $id) {
+            if ($actorId === $id) {
+                throw new ApiException('cannot_delete_self', 409);
+            }
+            $row = $this->db->one('SELECT role FROM users WHERE id = ?', [$id]) ?? throw ApiException::notFound('user_not_found');
+            if ($row['role'] === self::ROLE_ADMIN && $this->adminCount() <= 1) {
+                throw new ApiException('last_admin', 409);
+            }
+            $this->db->run('DELETE FROM users WHERE id = ?', [$id]);
+        });
+    }
+
+    public function adminCount(): int
+    {
+        return (int) $this->db->value('SELECT COUNT(*) FROM users WHERE role = ?', [self::ROLE_ADMIN]);
     }
 
     /** @return array<string, mixed> */

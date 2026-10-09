@@ -1,0 +1,162 @@
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { UserPlus, Trash2, KeyRound } from '@lucide/vue'
+import { api, ApiError } from '../lib/api.js'
+import { t, errorMessage, fieldError, locale } from '../lib/i18n.js'
+import { store, toast } from '../lib/store.js'
+import { formatDate } from '../lib/format.js'
+import BaseModal from './BaseModal.vue'
+
+/** Admin user management: create accounts with role admin/user, change roles, reset passwords, delete. */
+const users = ref([])
+const showCreate = ref(false)
+const form = reactive({ username: '', email: '', password: '', role: 'user', locale: locale.value })
+const errors = ref({})
+const busy = ref(false)
+const passwordFor = ref(null)
+const newPassword = ref('')
+
+async function load() {
+  users.value = (await api('users.php')).users
+}
+onMounted(() => load().catch((e) => toast(errorMessage(e), 'error')))
+
+function openCreate() {
+  Object.assign(form, { username: '', email: '', password: '', role: 'user', locale: locale.value })
+  errors.value = {}
+  showCreate.value = true
+}
+
+async function create() {
+  busy.value = true
+  errors.value = {}
+  try {
+    const { user } = await api('users.php', { method: 'POST', body: form })
+    toast(t('users.created', { name: user.username }), 'success')
+    showCreate.value = false
+    await load()
+  } catch (e) {
+    if (e instanceof ApiError) errors.value = e.fields
+    toast(errorMessage(e), 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function changeRole(user, role) {
+  if (user.id === store.user.id && role !== 'admin' && !confirm(t('users.demoteSelf'))) {
+    await load()
+    return
+  }
+  try {
+    await api('users.php', { method: 'PUT', query: { id: user.id }, body: { role } })
+    toast(t('common.saved'), 'success')
+    if (user.id === store.user.id) store.user = { ...store.user, role }
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+  await load()
+}
+
+async function savePassword() {
+  try {
+    await api('users.php', { method: 'PUT', query: { id: passwordFor.value.id }, body: { password: newPassword.value } })
+    toast(t('users.passwordSet', { name: passwordFor.value.username }), 'success')
+    passwordFor.value = null
+    newPassword.value = ''
+  } catch (e) {
+    toast(e instanceof ApiError && e.fields.password ? fieldError(e.fields.password) : errorMessage(e), 'error')
+  }
+}
+
+async function remove(user) {
+  if (!confirm(t('users.deleteConfirm', { name: user.username }))) return
+  try {
+    await api('users.php', { method: 'DELETE', query: { id: user.id } })
+    toast(t('users.deleted', { name: user.username }), 'success')
+    await load()
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-3 text-sm">
+    <div class="flex items-start justify-between gap-2">
+      <p class="text-stone-600 dark:text-stone-400">{{ t('users.hint') }}</p>
+      <button class="btn-primary shrink-0 !py-1.5" @click="openCreate"><UserPlus class="h-4 w-4" />{{ t('users.new') }}</button>
+    </div>
+    <ul class="divide-y divide-stone-100 dark:divide-stone-800">
+      <li v-for="u in users" :key="u.id" class="flex flex-wrap items-center gap-2 py-2">
+        <div class="min-w-0 flex-1">
+          <div class="font-medium">{{ u.username }} <span v-if="u.id === store.user?.id" class="text-xs font-normal text-stone-500">({{ t('users.you') }})</span></div>
+          <div class="truncate text-xs text-stone-500">{{ u.email }}<template v-if="u.last_login_at"> · {{ t('users.lastLogin', { date: formatDate(u.last_login_at) }) }}</template></div>
+        </div>
+        <select :value="u.role" class="input !w-auto !py-1 !text-sm" :aria-label="t('users.role')" @change="changeRole(u, $event.target.value)">
+          <option value="admin">{{ t('users.role_admin') }}</option>
+          <option value="user">{{ t('users.role_user') }}</option>
+        </select>
+        <button class="btn-ghost !p-2" :title="t('users.setPassword')" :aria-label="t('users.setPassword')" @click="(passwordFor = u), (newPassword = '')">
+          <KeyRound class="h-4 w-4" />
+        </button>
+        <button class="btn-ghost !p-2 text-red-600" :disabled="u.id === store.user?.id" :title="t('common.delete')" :aria-label="t('common.delete')" @click="remove(u)">
+          <Trash2 class="h-4 w-4" />
+        </button>
+      </li>
+    </ul>
+    <p class="text-xs text-stone-500">{{ t('users.rolesHint') }}</p>
+
+    <BaseModal v-if="showCreate" :title="t('users.new')" @close="showCreate = false">
+      <form class="space-y-3" @submit.prevent="create">
+        <div>
+          <label class="label" for="ua_username">{{ t('auth.username') }}</label>
+          <input id="ua_username" v-model="form.username" class="input" required minlength="3" maxlength="50" autocomplete="off" />
+          <p v-if="errors.username" class="field-error">{{ fieldError(errors.username) }}</p>
+        </div>
+        <div>
+          <label class="label" for="ua_email">{{ t('auth.email') }}</label>
+          <input id="ua_email" v-model="form.email" type="email" class="input" required autocomplete="off" />
+          <p v-if="errors.email" class="field-error">{{ fieldError(errors.email) }}</p>
+        </div>
+        <div>
+          <label class="label" for="ua_password">{{ t('users.initialPassword') }}</label>
+          <input id="ua_password" v-model="form.password" type="password" class="input" required minlength="8" autocomplete="new-password" />
+          <p class="mt-1 text-xs text-stone-500">{{ t('auth.passwordHint') }}</p>
+          <p v-if="errors.password" class="field-error">{{ fieldError(errors.password) }}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label" for="ua_role">{{ t('users.role') }}</label>
+            <select id="ua_role" v-model="form.role" class="input">
+              <option value="user">{{ t('users.role_user') }}</option>
+              <option value="admin">{{ t('users.role_admin') }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="ua_locale">{{ t('settings.language') }}</label>
+            <select id="ua_locale" v-model="form.locale" class="input">
+              <option value="de">Deutsch</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn-secondary" @click="showCreate = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary" :disabled="busy">{{ t('users.create') }}</button>
+        </div>
+      </form>
+    </BaseModal>
+
+    <BaseModal v-if="passwordFor" :title="t('users.setPasswordFor', { name: passwordFor.username })" @close="passwordFor = null">
+      <form class="space-y-3" @submit.prevent="savePassword">
+        <input v-model="newPassword" type="password" class="input" required minlength="8" autocomplete="new-password" :aria-label="t('settings.newPassword')" />
+        <p class="text-xs text-stone-500">{{ t('auth.passwordHint') }}</p>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn-secondary" @click="passwordFor = null">{{ t('common.cancel') }}</button>
+          <button class="btn-primary">{{ t('common.save') }}</button>
+        </div>
+      </form>
+    </BaseModal>
+  </div>
+</template>
