@@ -23,6 +23,14 @@ export function todayIso(offsetDays = 0) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** ISO date (Y-m-d) plus a number of days, e.g. borrowing date + loan period. */
+export function addDaysIso(iso, days) {
+  const [y, m, d] = String(iso).split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const date = new Date(y, m - 1, d + Number(days))
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 /**
  * Cover URL – always on our own server, never an external host (the CSP only
  * allows img-src 'self'). Saved books use the locally stored copy; the form

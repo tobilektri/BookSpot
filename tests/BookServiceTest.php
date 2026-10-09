@@ -71,6 +71,43 @@ final class BookServiceTest extends TestCase
         self::assertNull($bought['loan_due']);
     }
 
+    public function testLibraryLoanUsesDefaultLoanPeriod(): void
+    {
+        $user = $this->createUser();
+        $auth = new \BookSpot\Auth($this->db);
+        $profile = $auth->updateProfile($user['id'], ['library_name' => ' Stadtbücherei ', 'library_loan_days' => '21']);
+        self::assertSame('Stadtbücherei', $profile['library_name']);
+        self::assertSame(21, $profile['library_loan_days']);
+
+        // Only the borrowing date: due date and library come from the defaults.
+        $loan = $this->books->create(['title' => 'Leihbuch', 'entry_type' => 'library_loan', 'loan_start' => '01.10.2026'], $user['id']);
+        self::assertSame('2026-10-22', $loan['loan_due']);
+        self::assertSame('Stadtbücherei', $loan['loan_from']);
+
+        // Without a borrowing date it starts today; an explicit due date or library wins.
+        self::assertSame('2026-10-30', $this->books->create(['title' => 'B', 'entry_type' => 'library_loan'], $user['id'])['loan_due']);
+        $own = $this->books->create(['title' => 'C', 'entry_type' => 'library_loan', 'loan_due' => '2026-11-15', 'loan_from' => 'Uni'], $user['id']);
+        self::assertSame(['2026-11-15', 'Uni'], [$own['loan_due'], $own['loan_from']]);
+
+        // Clearing the due date on an existing loan recalculates it from the borrowing date.
+        self::assertSame('2026-10-22', $this->books->update($own['id'], ['loan_start' => '2026-10-01', 'loan_due' => ''], $user['id'])['loan_due']);
+
+        try {
+            $auth->updateProfile($user['id'], ['library_loan_days' => '0']);
+            self::fail('invalid loan period accepted');
+        } catch (ApiException $e) {
+            self::assertSame(['library_loan_days' => 'invalid_loan_days'], $e->details['errors']);
+        }
+        $cleared = $auth->updateProfile($user['id'], ['library_name' => '', 'library_loan_days' => '']);
+        self::assertSame([null, null], [$cleared['library_name'], $cleared['library_loan_days']]);
+        try {
+            $this->books->create(['title' => 'D', 'entry_type' => 'library_loan'], $user['id']);
+            self::fail('library loan without due date accepted');
+        } catch (ApiException $e) {
+            self::assertSame(['loan_due'], array_keys($e->details['errors']));
+        }
+    }
+
     public function testPersonalDataIsIsolatedPerUser(): void
     {
         $anna = $this->createUser('anna');

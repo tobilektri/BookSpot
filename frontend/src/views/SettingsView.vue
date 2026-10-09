@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { LogOut, Download, Upload, Bell, User, Users, Info, Smartphone, Clock, GraduationCap } from '@lucide/vue'
+import { LogOut, Download, Upload, Bell, User, Users, Info, Smartphone, Clock, GraduationCap, Library } from '@lucide/vue'
 import { api, ApiError } from '../lib/api.js'
 import { t, errorMessage, fieldError, locale, setLocale, appName } from '../lib/i18n.js'
 import { store, toast } from '../lib/store.js'
@@ -18,6 +18,8 @@ const router = useRouter()
 const route = useRoute()
 const profile = reactive({ email: store.user?.email ?? '', locale: store.user?.locale ?? locale.value, current_password: '', new_password: '' })
 const errors = ref({})
+const library = reactive({ library_name: store.user?.library_name ?? '', library_loan_days: store.user?.library_loan_days ?? '' })
+const libraryErrors = ref({})
 
 onMounted(async () => {
   if (route.hash) nextTick(() => document.querySelector(route.hash)?.scrollIntoView({ behavior: 'smooth' }))
@@ -35,6 +37,20 @@ async function saveProfile() {
     toast(t('common.saved'), 'success')
   } catch (e) {
     if (e instanceof ApiError) errors.value = e.fields
+    toast(errorMessage(e), 'error')
+  }
+}
+
+async function saveLibrary() {
+  libraryErrors.value = {}
+  try {
+    const { user } = await api('auth.php', { method: 'POST', query: { action: 'profile' }, body: { ...library } })
+    rememberUser(user)
+    library.library_name = user.library_name ?? ''
+    library.library_loan_days = user.library_loan_days ?? ''
+    toast(t('common.saved'), 'success')
+  } catch (e) {
+    if (e instanceof ApiError) libraryErrors.value = e.fields
     toast(errorMessage(e), 'error')
   }
 }
@@ -75,6 +91,26 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
           <label class="label" for="new_password">{{ t('settings.newPassword') }}</label>
           <input id="new_password" v-model="profile.new_password" type="password" class="input" autocomplete="new-password" minlength="8" />
           <p v-if="errors.new_password" class="field-error">{{ fieldError(errors.new_password) }}</p>
+        </div>
+        <div class="sm:col-span-2 flex justify-end"><button class="btn-primary">{{ t('common.save') }}</button></div>
+      </form>
+    </section>
+
+    <section id="library" class="card scroll-mt-20 space-y-3">
+      <h2 class="flex items-center gap-2 font-semibold"><Library class="h-5 w-5 text-brand-600" />{{ t('settings.library') }}</h2>
+      <p class="text-sm text-stone-600 dark:text-stone-400">{{ t('settings.libraryHint') }}</p>
+      <form class="grid grid-cols-1 gap-3 sm:grid-cols-2" @submit.prevent="saveLibrary">
+        <div>
+          <label class="label" for="library_name">{{ t('settings.libraryName') }}</label>
+          <input id="library_name" v-model="library.library_name" class="input" maxlength="150" placeholder="Stadtbibliothek" />
+        </div>
+        <div>
+          <label class="label" for="library_loan_days">{{ t('settings.loanDays') }}</label>
+          <div class="flex items-center gap-2">
+            <input id="library_loan_days" v-model="library.library_loan_days" type="number" min="1" max="365" inputmode="numeric" class="input" placeholder="28" />
+            <span class="text-sm text-stone-500">{{ t('settings.days') }}</span>
+          </div>
+          <p v-if="libraryErrors.library_loan_days" class="field-error">{{ fieldError(libraryErrors.library_loan_days) }}</p>
         </div>
         <div class="sm:col-span-2 flex justify-end"><button class="btn-primary">{{ t('common.save') }}</button></div>
       </form>

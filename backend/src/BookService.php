@@ -367,9 +367,19 @@ final class BookService
         }
 
         // Loans: a library loan needs a due date; the borrowing user defaults to the creator.
+        // Without a due date the borrower's default loan period applies (Settings → My library).
         $type = $data['entry_type'] ?? $existing['entry_type'] ?? 'owned';
         if ($type === 'library_loan') {
+            $borrower = $data['loan_user_id'] ?? $existing['loan_user_id'] ?? $userId;
+            $defaults = $this->db->one('SELECT library_name, library_loan_days FROM users WHERE id = ?', [$borrower]) ?? [];
+            if (!$isUpdate && empty($data['loan_from']) && !empty($defaults['library_name'])) {
+                $data['loan_from'] = $defaults['library_name'];
+            }
             $due = array_key_exists('loan_due', $data) ? $data['loan_due'] : ($existing['loan_due'] ?? null);
+            if ($due === null && !isset($errors['loan_due']) && !isset($errors['loan_start']) && !empty($defaults['library_loan_days'])) {
+                $start = $data['loan_start'] ?? $existing['loan_start'] ?? App::today();
+                $due = $data['loan_due'] = self::addDays((string) $start, (int) $defaults['library_loan_days']);
+            }
             if ($due === null) {
                 $errors['loan_due'] = 'required';
             }
@@ -484,5 +494,11 @@ final class BookService
             'column' => $column['label'] ?? null,
             'compartment' => ($column !== null && $row !== null) ? ($column['rows'][$row - 1] ?? null) : null,
         ];
+    }
+
+    /** Y-m-d plus a number of days (loan period). */
+    public static function addDays(string $date, int $days): string
+    {
+        return (new \DateTimeImmutable($date))->modify(sprintf('%+d days', $days))->format('Y-m-d');
     }
 }

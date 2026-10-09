@@ -7,7 +7,7 @@ import { t, errorMessage } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
 import { books as catalog, patchBook, removeBook } from '../lib/catalog.js'
 import { savePersonal, moveBooks } from '../lib/sync.js'
-import { formatDate, formatPrice, locationText, todayIso } from '../lib/format.js'
+import { formatDate, formatPrice, locationText, todayIso, addDaysIso } from '../lib/format.js'
 import { invalidateShelves } from '../lib/shelves.js'
 import BookCover from '../components/BookCover.vue'
 import StarRating from '../components/StarRating.vue'
@@ -134,6 +134,13 @@ async function lend() {
   lendName.value = ''
 }
 
+// Libraries usually extend by one loan period from the current due date.
+function extendDefault() {
+  const days = book.value.entry_type === 'library_loan' ? store.user?.library_loan_days : null
+  if (book.value.loan_due && days) return addDaysIso(book.value.loan_due, days)
+  return book.value.loan_due || todayIso(14)
+}
+
 async function extend() {
   await updateBook({ loan_due: extendDate.value })
   showExtend.value = false
@@ -223,7 +230,7 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
               <span v-if="book.loan_username"> · {{ t('book.borrower') }}: {{ book.loan_username }}</span>
             </div>
             <div v-if="book.status === 'active'" class="mt-3 flex flex-wrap gap-2">
-              <button class="btn-secondary !py-1.5" @click="(extendDate = book.loan_due || todayIso(14)), (showExtend = true)">{{ t('due.extend') }}</button>
+              <button class="btn-secondary !py-1.5" @click="(extendDate = extendDefault()), (showExtend = true)">{{ t('due.extend') }}</button>
               <button class="btn-primary !py-1.5" @click="updateBook({ status: 'returned' }, t('due.returned'))"><Check class="h-4 w-4" />{{ t('due.markReturned') }}</button>
             </div>
           </div>

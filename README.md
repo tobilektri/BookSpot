@@ -23,6 +23,9 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
   – Standort-Codes wie `L2`, `M4`, `R3` aus der Spalte *Standort* oder *Notizen* werden erkannt und
   können **automatisch als Regal angelegt** werden. Probelauf-Modus, Import-Protokoll.
 - **Ausleihen**: Bibliotheks-Ausleihen (Frist), privat geliehene Bücher, eigene Bücher verleihen.
+  Unter *Einstellungen → Meine Bibliothek* lassen sich Bibliotheksname und Standard-Leihfrist pro Nutzer
+  hinterlegen: Man trägt nur das Ausleihdatum ein, die Rückgabefrist wird berechnet (auch „Verlängern“
+  rechnet mit der Leihfrist).
   Dashboard-Widget „Anstehende Rückgaben“ (Hervorhebung ≤ 3 Tage), **Web-Push** 3 Tage und 1 Tag
   vorher sowie am Fälligkeitstag.
 - **Statistik**: Lesestatus (Donut), gelesene Seiten, Genres (gelesen/offen), Bücher bzw. Seiten pro

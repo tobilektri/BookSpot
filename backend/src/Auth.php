@@ -195,7 +195,7 @@ final class Auth
     /** @return array<string, mixed>|null */
     public function findById(int $id): ?array
     {
-        $user = $this->db->one('SELECT id, username, email, role, locale, created_at, onboarded_at FROM users WHERE id = ?', [$id]);
+        $user = $this->db->one('SELECT id, username, email, role, locale, created_at, onboarded_at, library_name, library_loan_days FROM users WHERE id = ?', [$id]);
         return $user === null ? null : self::publicUser($user);
     }
 
@@ -403,6 +403,20 @@ final class Auth
         if (isset($input['locale']) && in_array($input['locale'], ['de', 'en'], true)) {
             $update['locale'] = $input['locale'];
         }
+        if (array_key_exists('library_name', $input)) {
+            $name = trim((string) $input['library_name']);
+            $update['library_name'] = $name === '' ? null : mb_substr($name, 0, 150);
+        }
+        if (array_key_exists('library_loan_days', $input)) {
+            $days = $input['library_loan_days'];
+            if ($days === null || $days === '') {
+                $update['library_loan_days'] = null;
+            } elseif (filter_var($days, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 365]]) === false) {
+                $errors['library_loan_days'] = 'invalid_loan_days';
+            } else {
+                $update['library_loan_days'] = (int) $days;
+            }
+        }
         if (!empty($input['new_password'])) {
             if (!password_verify((string) ($input['current_password'] ?? ''), $row['password_hash'])) {
                 $errors['current_password'] = 'wrong_password';
@@ -451,6 +465,10 @@ final class Auth
             'locale' => $row['locale'],
             'created_at' => $row['created_at'],
         ] + (array_key_exists('last_login_at', $row) ? ['last_login_at' => $row['last_login_at']] : [])
-          + (array_key_exists('onboarded_at', $row) ? ['onboarded_at' => $row['onboarded_at']] : []);
+          + (array_key_exists('onboarded_at', $row) ? ['onboarded_at' => $row['onboarded_at']] : [])
+          + (array_key_exists('library_loan_days', $row) ? [
+              'library_name' => $row['library_name'],
+              'library_loan_days' => $row['library_loan_days'] === null ? null : (int) $row['library_loan_days'],
+          ] : []);
     }
 }

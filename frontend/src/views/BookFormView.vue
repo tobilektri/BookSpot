@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, BookMarked, Library, Users } from '@lucide/vue'
 import { api, ApiError } from '../lib/api.js'
@@ -7,7 +7,7 @@ import { t, errorMessage, fieldError } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
 import { patchBook, books as catalog } from '../lib/catalog.js'
 import { normalizeIsbn } from '../lib/isbn.js'
-import { todayIso } from '../lib/format.js'
+import { todayIso, addDaysIso, formatDate } from '../lib/format.js'
 import { invalidateShelves } from '../lib/shelves.js'
 import LocationPicker from '../components/LocationPicker.vue'
 import BookCover from '../components/BookCover.vue'
@@ -47,6 +47,25 @@ const lookupState = ref('') // '', 'loading', 'found', 'none'
 const lookupSource = ref('')
 const loaded = ref(!props.id)
 
+// Library loans: due date = borrowing date + loan period (Settings → My library, otherwise 28 days).
+// It follows the borrowing date until the due date is edited by hand.
+const loanDays = computed(() => store.user?.library_loan_days || null)
+const defaultDue = computed(() => (form.loan_start ? addDaysIso(form.loan_start, loanDays.value ?? 28) : ''))
+const dueAuto = ref(!props.id)
+watch([() => form.entry_type, () => form.loan_start, loanDays], () => {
+  if (form.entry_type === 'library_loan' && dueAuto.value && defaultDue.value) form.loan_due = defaultDue.value
+})
+watch(
+  () => form.entry_type,
+  (type) => {
+    if (type === 'library_loan' && !isEdit.value && !form.loan_from && store.user?.library_name) form.loan_from = store.user.library_name
+  },
+)
+function useDefaultDue() {
+  form.loan_due = defaultDue.value
+  dueAuto.value = true
+}
+
 // Unchanged cover of a saved book: show the stored copy; otherwise a server-side preview.
 const savedCover = ref(null) // { id, cover_version, has_cover, cover_url, isbn13 } when editing
 const previewBook = computed(() => {
@@ -69,6 +88,7 @@ onMounted(async () => {
         else if (!['entry_type', 'status', 'loan_start', 'loan_due'].includes(key)) form[key] = ''
       }
       if (book.entry_type !== 'library_loan' && !book.loan_due) form.loan_due = ''
+      dueAuto.value = Boolean(form.loan_start) && form.loan_due === defaultDue.value
       location.value = { shelf_id: book.shelf_id, shelf_col: book.shelf_col, shelf_row: book.shelf_row }
       savedCover.value = { id: book.id, cover_version: book.cover_version, has_cover: book.has_cover, cover_url: book.cover_url, isbn13: book.isbn13 }
     } catch (e) {
@@ -276,9 +296,17 @@ const types = computed(() => [
           </div>
           <div>
             <label class="label" for="loan_due">{{ t('book.loanDue') }}{{ form.entry_type === 'library_loan' ? ' *' : '' }}</label>
-            <input id="loan_due" v-model="form.loan_due" type="date" class="input" :required="form.entry_type === 'library_loan'" />
+            <input id="loan_due" v-model="form.loan_due" type="date" class="input" :required="form.entry_type === 'library_loan'" @input="dueAuto = false" />
             <p v-if="errors.loan_due" class="field-error">{{ fieldError(errors.loan_due) }}</p>
           </div>
+          <p v-if="form.entry_type === 'library_loan'" class="col-span-2 -mt-1 text-xs text-stone-500">
+            <template v-if="dueAuto || form.loan_due === defaultDue">{{ t('book.dueAuto', { n: loanDays ?? 28 }) }}</template>
+            <button v-else-if="defaultDue" type="button" class="font-medium text-brand-700 underline dark:text-brand-400" @click="useDefaultDue">
+              {{ t('book.useDefaultDue', { n: loanDays ?? 28, date: formatDate(defaultDue) }) }}
+            </button>
+            ·
+            <RouterLink to="/settings#library" class="underline">{{ loanDays ? t('book.changeLoanDays') : t('book.setLoanDays') }}</RouterLink>
+          </p>
         </div>
 
         <div v-if="isEdit">
