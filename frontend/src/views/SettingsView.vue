@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { LogOut, Download, Upload, Bell, User, Users, Info, Smartphone, Clock } from '@lucide/vue'
+import { LogOut, Download, Upload, Bell, User, Users, Info, Smartphone, Clock, GraduationCap } from '@lucide/vue'
 import { api, ApiError } from '../lib/api.js'
 import { t, errorMessage, fieldError, locale, setLocale, appName } from '../lib/i18n.js'
 import { store, toast } from '../lib/store.js'
@@ -114,7 +114,7 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
         <h2 class="mb-2 flex items-center gap-2 font-semibold"><Users class="h-5 w-5 text-brand-600" />{{ t('users.title') }}</h2>
         <UserAdmin />
       </section>
-      <section class="card">
+      <section id="cron" class="card scroll-mt-20">
         <h2 class="mb-2 flex items-center gap-2 font-semibold"><Clock class="h-5 w-5 text-brand-600" />{{ t('cron.title') }}</h2>
         <CronInfo />
       </section>
@@ -124,6 +124,7 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
       <h2 class="flex items-center gap-2 font-semibold"><Info class="h-5 w-5 text-brand-600" />{{ t('settings.about') }}</h2>
       <p>{{ store.appName || appName }} · {{ t('settings.version', { v: store.version }) }} · <a href="https://github.com/tobilektri/BookSpot" class="text-brand-700 underline" target="_blank" rel="noopener">{{ t('settings.sourceCode') }}</a></p>
       <div class="flex flex-wrap gap-2">
+        <button class="btn-secondary" @click="store.showOnboarding = true"><GraduationCap class="h-4 w-4" />{{ t('onboarding.restart') }}</button>
         <button class="btn-secondary text-red-600" @click="doLogout"><LogOut class="h-4 w-4" />{{ t('auth.logout') }}</button>
       </div>
     </section>

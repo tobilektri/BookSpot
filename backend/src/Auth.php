@@ -20,6 +20,9 @@ final class Auth
     /** @var array<string, mixed>|null */
     private static ?array $currentUser = null;
 
+    /** Read the session without keeping it locked (parallel image requests). */
+    public static bool $readOnlySession = false;
+
     public function __construct(private readonly Database $db)
     {
     }
@@ -46,7 +49,7 @@ final class Auth
             'httponly' => true,
             'samesite' => 'Strict',
         ]);
-        session_start();
+        session_start(self::$readOnlySession ? ['read_and_close' => true] : []);
     }
 
     public static function isHttps(): bool
@@ -192,7 +195,7 @@ final class Auth
     /** @return array<string, mixed>|null */
     public function findById(int $id): ?array
     {
-        $user = $this->db->one('SELECT id, username, email, role, locale, created_at FROM users WHERE id = ?', [$id]);
+        $user = $this->db->one('SELECT id, username, email, role, locale, created_at, onboarded_at FROM users WHERE id = ?', [$id]);
         return $user === null ? null : self::publicUser($user);
     }
 
@@ -334,6 +337,12 @@ final class Auth
         });
     }
 
+    /** The introduction wizard was finished or skipped (shown once per user). */
+    public function markOnboarded(int $userId): void
+    {
+        $this->db->update('users', ['onboarded_at' => App::nowString()], ['id' => $userId]);
+    }
+
     public function adminCount(): int
     {
         return (int) $this->db->value('SELECT COUNT(*) FROM users WHERE role = ?', [self::ROLE_ADMIN]);
@@ -441,6 +450,7 @@ final class Auth
             'role' => $row['role'],
             'locale' => $row['locale'],
             'created_at' => $row['created_at'],
-        ] + (array_key_exists('last_login_at', $row) ? ['last_login_at' => $row['last_login_at']] : []);
+        ] + (array_key_exists('last_login_at', $row) ? ['last_login_at' => $row['last_login_at']] : [])
+          + (array_key_exists('onboarded_at', $row) ? ['onboarded_at' => $row['onboarded_at']] : []);
     }
 }

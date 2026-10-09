@@ -23,10 +23,18 @@ export function todayIso(offsetDays = 0) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** Cover URL with Open Library fallback by ISBN (no API call needed). */
+/**
+ * Cover URL. Saved books use the locally stored copy (api/cover.php downloads it
+ * once on the server); only unsaved books in the form preview point to the source.
+ */
 export function coverUrl(book, size = 'M') {
-  if (book?.cover_url) return book.cover_url
-  if (book?.isbn13) return `https://covers.openlibrary.org/b/isbn/${book.isbn13}-${size}.jpg?default=false`
+  if (!book) return null
+  if (book.id) {
+    if (book.has_cover === false) return null // known: no cover anywhere -> placeholder without request
+    return new URL(`api/cover.php?id=${book.id}&v=${book.cover_version ?? ''}`, document.baseURI).href
+  }
+  if (book.cover_url) return book.cover_url
+  if (book.isbn13) return `https://covers.openlibrary.org/b/isbn/${book.isbn13}-${size}.jpg?default=false`
   return null
 }
 

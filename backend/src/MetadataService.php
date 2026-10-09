@@ -374,6 +374,11 @@ final class MetadataService
                     $updated++;
                     $changes['updated_at'] = $now;
                 }
+                if (isset($changes['cover_url'])) {
+                    // New cover source: let CoverService download it (again).
+                    $changes['cover_status'] = null;
+                    $changes['cover_checked_at'] = null;
+                }
             }
             $this->db->update('books', $changes, ['id' => (int) $book['id']]);
         }

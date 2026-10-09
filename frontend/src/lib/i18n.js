@@ -189,6 +189,57 @@ const de = {
     alreadyInstalled: '✓ Du nutzt die installierte App.',
     unsupported: 'Dieser Browser kann Web-Apps nicht installieren. Nutze Chrome oder Edge (Windows, Android) bzw. Safari (iPhone, iPad, Mac).',
   },
+  onboarding: {
+    title: 'Einführung', start: 'Los geht’s', next: 'Weiter', finish: 'Fertig', skip: 'Überspringen',
+    restart: 'Einführung erneut ansehen', adminBadge: 'Für Admins',
+    welcome: {
+      title: 'Willkommen, {name}!', text: '{app} ist eure gemeinsame Bücherverwaltung. In einer Minute zeige ich dir das Wichtigste.',
+      p1: 'Alle sehen denselben Katalog: Bücher, Regale und Ausleihen.', p2: 'Dein Lesestand, deine Bewertungen und Notizen gehören nur dir.', p3: 'Funktioniert auch offline – Änderungen werden später synchronisiert.',
+    },
+    find: {
+      title: 'Bücher finden & hinzufügen', text: 'Ein Buch in der Hand? Einfach den Barcode scannen.',
+      p1: 'Der runde Scannen-Knopf unten öffnet die Kamera und erkennt die ISBN.', p2: 'Steht das Buch schon im Katalog, siehst du sofort, wo es steht. Sonst füllt {app} Titel, Autor & Co. automatisch aus.', p3: 'Oben auf der Startseite und unter „Bücher“ findest du alles über die Suche und Filter.',
+    },
+    reading: {
+      title: 'Lesestand & Statistik', text: 'In jedem Buch kannst du festhalten, wie weit du bist.',
+      p1: 'Status (ungelesen, am Lesen, gelesen), gelesene Seiten, Sterne und Notizen.', p2: 'Auf der Startseite aktualisierst du den Fortschritt deiner aktuellen Bücher mit einem Tipp.', p3: 'Die Statistik zeigt Seiten, Genres und dein Lesetempo pro Monat und Jahr.',
+    },
+    shelves: {
+      title: 'Regale & Standorte', text: 'Jedes eigene Buch hat einen Platz: Regal › Fach.',
+      p1: 'Unter „Regale“ siehst du jedes Regal mit seinen Fächern und Buchrücken.', p2: 'Bücher lassen sich per Drag & Drop in ein anderes Fach ziehen oder über „Verschieben nach …“ umstellen.', p3: 'Der Filter „Ohne Standort“ zeigt Bücher, die noch einen Platz brauchen.',
+    },
+    loans: {
+      title: 'Ausleihen & Erinnerungen', text: 'Bücher aus der Bücherei oder von Freunden mit Rückgabedatum.',
+      p1: 'Beim Anlegen „Bibliotheks-Ausleihe“ wählen und das Rückgabedatum eintragen.', p2: 'Die Startseite zeigt anstehende Rückgaben, knappe Fristen sind markiert.', p3: 'Mit Push erinnert dich {app} 3 Tage und 1 Tag vorher sowie am Fälligkeitstag.',
+      pushLater: 'Erinnerungen kannst du später in den Einstellungen aktivieren.',
+    },
+    install: {
+      title: 'Als App installieren', text: 'Am bequemsten nutzt du {app} als App auf dem Handy oder Computer.',
+      p1: 'Startet mit einem Tipp vom Startbildschirm, im Vollbild.', p2: 'Funktioniert auch ohne Internet.', p3: 'Auf iPhone und iPad gibt es Erinnerungen nur in der installierten App.',
+      hideGuide: 'Anleitung ausblenden',
+    },
+    adminImport: {
+      title: 'Sammlung importieren', text: 'Du hast schon eine Liste, z. B. aus Bookstats? Dann musst du nichts abtippen.',
+      p1: 'Einstellungen → CSV-Import: Bookstats-, Goodreads- und andere CSV-Dateien.', p2: 'Standort-Codes wie L2 oder M4 werden erkannt und auf Wunsch automatisch als Regal angelegt.', p3: 'Mit „Datei prüfen“ siehst du vorher, was passieren würde. Cover und fehlende Daten werden danach ergänzt.',
+    },
+    adminShelves: {
+      title: 'Regale einrichten', text: 'Jedes Regal besteht aus Spalten mit beliebig vielen Fächern.',
+      p1: 'Regal bearbeiten: Fächer und Spalten am Griff per Drag & Drop anordnen – die Bücher wandern mit.', p2: '„Reihenfolge umkehren“, wenn die Fächer von unten nach oben nummeriert sind.', p3: 'Die Fachnamen (z. B. L2) nutzt der CSV-Import zur Zuordnung.',
+    },
+    adminUsers: {
+      title: 'Familie & Freunde einladen', text: 'Unter Einstellungen → Benutzerverwaltung legst du weitere Konten an.',
+      p1: 'Rolle „Admin“ darf Benutzer verwalten, „Benutzer“ nicht.', p2: 'Per Einladungs-E-Mail legt jede Person ihr Passwort selbst fest.', p3: 'Über die Maske kannst du dich zur Hilfe als jemand anderes anmelden.',
+    },
+    adminCron: {
+      title: 'Cronjob & Buchdaten', text: 'Damit Erinnerungen pünktlich kommen, sollte eine URL stündlich aufgerufen werden.',
+      p1: 'Die fertige Cron-URL steht unter Einstellungen → Cronjob (beim Hoster eintragen oder cron-job.org).', p2: 'Der Cronjob lädt außerdem Cover herunter und ergänzt fehlende Buchdaten.', p3: 'Optional: einen kostenlosen Google-Books-Key in der .env eintragen (siehe docs/).',
+    },
+    done: {
+      title: 'Alles bereit!', text: 'Viel Spaß beim Schmökern. Die Einführung findest du jederzeit wieder unter Einstellungen.',
+      p1: 'Tipp: Mit dem Scanner geht das Erfassen am schnellsten.', p2: 'Fragen zu einem Buch? Einfach antippen – dort steht alles.', p3: 'Änderungen ohne Internet werden automatisch nachgereicht.',
+      scan: 'Erstes Buch scannen', import: 'CSV importieren', users: 'Benutzer einladen', books: 'Bücher ansehen',
+    },
+  },
   sync: {
     done: '{n} Offline-Änderung(en) synchronisiert.', conflicts: '{n} Änderung(en) waren veraltet – neuere Daten vom Server behalten.',
     errors: '{n} Änderung(en) konnten nicht übernommen werden.', queued: 'Offline gespeichert – wird synchronisiert, sobald du online bist.',
@@ -406,6 +457,57 @@ const en = {
     desktopNotOffered: 'If neither is there, the app is probably already installed on this device – or the page is not served over HTTPS.',
     alreadyInstalled: '✓ You are using the installed app.',
     unsupported: 'This browser cannot install web apps. Use Chrome or Edge (Windows, Android) or Safari (iPhone, iPad, Mac).',
+  },
+  onboarding: {
+    title: 'Introduction', start: 'Let’s go', next: 'Next', finish: 'Done', skip: 'Skip',
+    restart: 'Show introduction again', adminBadge: 'For admins',
+    welcome: {
+      title: 'Welcome, {name}!', text: '{app} is your shared book collection. Let me show you the essentials in a minute.',
+      p1: 'Everyone sees the same catalogue: books, shelves and loans.', p2: 'Your reading progress, ratings and notes are yours alone.', p3: 'Works offline too – changes are synced later.',
+    },
+    find: {
+      title: 'Find & add books', text: 'Got a book in your hand? Just scan its barcode.',
+      p1: 'The round scan button at the bottom opens the camera and reads the ISBN.', p2: 'If the book is already in the catalogue you see right away where it is. Otherwise {app} fills in title, author etc. automatically.', p3: 'Search and filters are on the home page and under “Books”.',
+    },
+    reading: {
+      title: 'Reading progress & stats', text: 'Every book keeps track of how far you are.',
+      p1: 'Status (unread, reading, read), pages read, stars and notes.', p2: 'Update the progress of your current books with one tap on the home page.', p3: 'Statistics show pages, genres and your reading pace per month and year.',
+    },
+    shelves: {
+      title: 'Shelves & locations', text: 'Every own book has a place: shelf › compartment.',
+      p1: 'Under “Shelves” you see every shelf with its compartments and book spines.', p2: 'Drag books into another compartment or use “Move to …”.', p3: 'The “No location” filter shows books that still need a place.',
+    },
+    loans: {
+      title: 'Loans & reminders', text: 'Books from the library or friends with a due date.',
+      p1: 'Choose “Library loan” when adding and enter the due date.', p2: 'The home page lists upcoming returns, tight deadlines are highlighted.', p3: 'With push {app} reminds you 3 days and 1 day before and on the due date.',
+      pushLater: 'You can enable reminders later in the settings.',
+    },
+    install: {
+      title: 'Install as an app', text: '{app} is most convenient as an app on your phone or computer.',
+      p1: 'Opens with one tap from the home screen, full screen.', p2: 'Works without internet as well.', p3: 'On iPhone and iPad reminders only work in the installed app.',
+      hideGuide: 'Hide guide',
+    },
+    adminImport: {
+      title: 'Import your collection', text: 'Already have a list, e.g. from Bookstats? No need to type anything.',
+      p1: 'Settings → CSV import: Bookstats, Goodreads and other CSV files.', p2: 'Location codes like L2 or M4 are recognised and can be turned into a shelf automatically.', p3: '“Check file” shows what would happen first. Covers and missing data are completed afterwards.',
+    },
+    adminShelves: {
+      title: 'Set up shelves', text: 'Each shelf consists of columns with any number of compartments.',
+      p1: 'Edit shelf: drag compartments and columns by their handle – the books move along.', p2: '“Reverse order” when compartments are numbered from the bottom up.', p3: 'Compartment names (e.g. L2) are used by the CSV import.',
+    },
+    adminUsers: {
+      title: 'Invite family & friends', text: 'Create more accounts under Settings → User management.',
+      p1: 'Role “Admin” may manage users, “User” may not.', p2: 'With an invitation email everyone chooses their own password.', p3: 'Use the mask to sign in as someone else to help them.',
+    },
+    adminCron: {
+      title: 'Cron job & book data', text: 'For reminders to arrive on time, a URL should be called hourly.',
+      p1: 'The cron URL is under Settings → Cron job (add it at your hoster or cron-job.org).', p2: 'The cron job also downloads covers and completes missing book data.', p3: 'Optional: add a free Google Books key to .env (see docs/).',
+    },
+    done: {
+      title: 'All set!', text: 'Happy reading. You can find this introduction again in the settings at any time.',
+      p1: 'Tip: the scanner is the fastest way to add books.', p2: 'Questions about a book? Just tap it – everything is there.', p3: 'Changes made offline are synced automatically.',
+      scan: 'Scan first book', import: 'Import CSV', users: 'Invite users', books: 'Browse books',
+    },
   },
   sync: {
     done: '{n} offline change(s) synced.', conflicts: '{n} change(s) were outdated – kept newer server data.',

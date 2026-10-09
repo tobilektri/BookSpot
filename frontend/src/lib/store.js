@@ -15,6 +15,7 @@ export const store = reactive({
   syncing: false,
   toasts: [],
   updateAvailable: false,
+  showOnboarding: false, // restart the introduction from the settings
   pushOffer: null, // set to a reason (e.g. 'loan') to offer push notifications right away
 })
 

@@ -38,17 +38,22 @@ registerRoute(
   }),
 )
 
-// Book covers (Open Library, Google Books, …): cache-first.
+// Book covers are stored on our own server (api/cover.php) and cached here for offline use.
+// External images are deliberately not intercepted: a fetch() from the service worker is
+// subject to connect-src 'self' and would fail.
 registerRoute(
-  ({ request, url }) => request.destination === 'image' && url.origin !== self.location.origin,
+  ({ url }) => url.origin === self.location.origin && url.pathname.endsWith('/api/cover.php'),
   new CacheFirst({
-    cacheName: 'bookspot-covers',
+    cacheName: 'bookspot-covers-local',
     plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 1500, maxAgeSeconds: 60 * 60 * 24 * 180, purgeOnQuotaError: true }),
+      new CacheableResponsePlugin({ statuses: [200] }),
+      new ExpirationPlugin({ maxEntries: 3000, maxAgeSeconds: 60 * 60 * 24 * 365, purgeOnQuotaError: true }),
     ],
   }),
 )
+
+// Old cache of hotlinked covers (before covers were stored locally).
+self.addEventListener('activate', (event) => event.waitUntil(caches.delete('bookspot-covers')))
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()

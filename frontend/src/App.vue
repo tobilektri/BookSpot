@@ -11,6 +11,7 @@ import { t, appName } from './lib/i18n.js'
 import logoUrl from './assets/logo.svg'
 import ToastStack from './components/ToastStack.vue'
 import EngagementPrompts from './components/EngagementPrompts.vue'
+import OnboardingWizard from './components/OnboardingWizard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -134,7 +135,8 @@ function applyUpdate() {
       <button class="btn-primary !py-1.5" @click="applyUpdate">{{ t('common.reload') }}</button>
     </div>
 
-    <EngagementPrompts v-if="showChrome && !store.updateAvailable && !store.impersonator" />
+    <OnboardingWizard v-if="showChrome" />
+    <EngagementPrompts v-if="showChrome && !store.updateAvailable && !store.impersonator && store.user?.onboarded_at && !store.showOnboarding" />
     <ToastStack />
   </div>
 </template>

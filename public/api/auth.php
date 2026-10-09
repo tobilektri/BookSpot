@@ -45,6 +45,15 @@ Api::run(function (Request $req) {
             Api::status(201);
             return ['user' => $user];
         })(),
+        'onboarded' => (function () use ($req, $auth) {
+            $req->isSafe() && Api::methodNotAllowed();
+            $user = Auth::requireUser();
+            // An admin looking at the app as someone else must not complete their introduction.
+            if (Auth::impersonator() === null) {
+                $auth->markOnboarded($user['id']);
+            }
+            return ['ok' => true];
+        })(),
         'stop_impersonation' => (function () use ($req) {
             $req->isSafe() && Api::methodNotAllowed();
             return ['user' => Auth::stopImpersonation()];

@@ -221,6 +221,11 @@ final class BookService
         }
         $data['updated_at'] = App::nowString();
         $this->db->update('books', $data, ['id' => $id]);
+        $coverSourceChanged = (array_key_exists('cover_url', $data) && $data['cover_url'] !== $existing['cover_url'])
+            || (array_key_exists('isbn13', $data) && $data['isbn13'] !== $existing['isbn13']);
+        if ($coverSourceChanged) {
+            (new CoverService($this->db))->forget($id, $existing['cover_file'] ?? null);
+        }
         return $this->get($id, $userId);
     }
 
@@ -245,8 +250,12 @@ final class BookService
 
     public function delete(int $id): void
     {
+        $file = $this->db->value('SELECT cover_file FROM books WHERE id = ?', [$id]);
         if ($this->db->run('DELETE FROM books WHERE id = ?', [$id])->rowCount() === 0) {
             throw ApiException::notFound('book_not_found');
+        }
+        if (is_string($file) && $file !== '') {
+            @unlink(CoverService::dir() . '/' . basename($file));
         }
     }
 
@@ -414,6 +423,9 @@ final class BookService
             'language' => $row['language'],
             'description' => $row['description'],
             'cover_url' => $row['cover_url'],
+            // Covers are served locally by api/cover.php; the version changes with the source.
+            'cover_version' => CoverService::version($row),
+            'has_cover' => ($row['cover_status'] ?? null) !== 'none',
             'format' => $row['format'],
             'price' => $row['price'] === null ? null : (float) $row['price'],
             'acquired_at' => $row['acquired_at'],

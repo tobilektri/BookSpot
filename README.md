@@ -31,6 +31,13 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
   IndexedDB (Dexie). Statusänderungen und Verschiebungen offline werden in einer Warteschlange
   gespeichert und bei Verbindung automatisch über `api/sync.php` übertragen (Konflikterkennung).
 - **Export** als Bookstats-kompatible CSV (re-importierbar).
+- **Cover werden lokal gespeichert:** Der Server lädt jedes Cover einmal herunter (Cover-URL des
+  Buchs, sonst Open Library per ISBN), verkleinert es auf max. 600 px (GD) und legt es in
+  `var/covers/` ab; ausgeliefert wird über `api/cover.php` mit Browser-Cache. Kein Hotlinking
+  (CSP-konform, offline verfügbar, unabhängig von Rate-Limits). Der Cronjob lädt Cover vorab.
+  **`var/covers/` gehört mit ins Backup.**
+- **Einführung (Wizard)** beim ersten Login – für Benutzer und (erweitert) für Admins, jederzeit
+  über die Einstellungen erneut startbar.
 - Metadaten-Anreicherung (Cover, Beschreibung, Verlag, Genre) im Hintergrund in kleinen Batches.
   Google Books ist optional und benötigt einen eigenen, kostenlosen API-Key → [docs/google-books-api-key.md](docs/google-books-api-key.md).
 
@@ -82,7 +89,7 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
    Für vollständige Buchdaten zusätzlich einen kostenlosen `GOOGLE_BOOKS_API_KEY`
    ([Anleitung](docs/google-books-api-key.md)).
    Ohne MySQL geht auch `DB_DRIVER=sqlite`.
-5. Ordner `var/` beschreibbar machen (Sessions, Logs, SQLite).
+5. Ordner `var/` beschreibbar machen (Sessions, Logs, gespeicherte Cover, SQLite).
 6. Seite aufrufen → **erstes Konto anlegen** (wird Admin). Die Tabellen werden automatisch erstellt.
    Weitere Konten legen Admins unter *Einstellungen → Benutzerverwaltung* an – mit der Rolle
    **Admin** (darf Benutzer verwalten) oder **Benutzer** (darf es nicht). Auf Wunsch geht eine

@@ -11,7 +11,7 @@ const failed = ref(false)
 const loaded = ref(false)
 const src = computed(() => (failed.value ? null : coverUrl(props.book, props.size === 'lg' ? 'L' : 'M')))
 watch(
-  () => props.book?.id,
+  () => [props.book?.id, props.book?.cover_version],
   () => {
     failed.value = false
     loaded.value = false
