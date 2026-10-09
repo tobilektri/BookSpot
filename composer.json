@@ -15,6 +15,7 @@
     },
     "suggest": {
         "ext-gmp": "Faster Web Push payload encryption",
+        "ext-dom": "Metadata lookup at the Deutsche Nationalbibliothek (MARC21-XML)",
         "ext-curl": "Faster metadata lookups (Open Library / Google Books)"
     },
     "autoload": {

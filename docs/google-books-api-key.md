@@ -1,8 +1,14 @@
 # Google Books API-Key anlegen (kostenlos)
 
-SchmökerSpot fragt Buchdaten zuerst bei **Open Library** ab. Dort fehlen bei vielen deutschen
-Ausgaben Autor, Seitenzahl, Erscheinungsjahr, Genre oder Beschreibung – diese Lücken füllt
-**Google Books**.
+SchmökerSpot fragt Buchdaten in dieser Reihenfolge ab; spätere Quellen füllen nur noch leere Felder:
+
+1. **Open Library** – Cover, oft nur Titel und Verlag.
+2. **Deutsche Nationalbibliothek (DNB)** – kostenlos, ohne Key, sehr vollständig für
+   deutschsprachige Ausgaben (Autor, Seitenzahl, Jahr, Verlag, Schlagworte, Klappentext).
+   Abschaltbar mit `METADATA_DNB=false`.
+3. **Google Books** – für alles, was dann noch fehlt (v. a. englische Titel und Beschreibungen).
+
+Google Books ist damit optional, aber für fremdsprachige Bücher hilfreich.
 
 ## Warum ein eigener Key nötig ist
 
@@ -67,17 +73,19 @@ Kommt ein JSON mit `"items": [...]` zurück, funktioniert der Key. In SchmökerS
 | `403` `API_KEY_SERVICE_BLOCKED` / `accessNotConfigured` | Books API im Projekt nicht aktiviert (Schritt 3) |
 | `403` `API_KEY_IP_ADDRESS_BLOCKED` | IP-Einschränkung passt nicht zur Server-IP (Schritt 5) |
 | `400` `API key not valid` | Schlüssel falsch kopiert |
+| `200` mit `"totalItems": 0` | Key funktioniert, Google kennt diese Ausgabe nur nicht (bei deutschen Taschenbüchern häufig – dann helfen Open Library und DNB) |
 
 ## Wie viele Anfragen braucht SchmökerSpot?
 
-- **Scannen / Anlegen**: 1 Anfrage pro Buch (nur wenn Open Library nicht alle Felder liefert).
+- **Scannen / Anlegen**: höchstens 1 Anfrage pro Buch – nur wenn Open Library und DNB nicht
+  alle Felder liefern.
 - **Metadaten ergänzen** nach einem CSV-Import: höchstens 1 Anfrage pro Buch. Eine Sammlung mit
   500 Büchern passt also in das Tageskontingent.
 - **Cron**: ergänzt höchstens `CRON_ENRICH_BATCH` (Standard 20) Bücher pro Lauf, bei stündlichem
   Cron also maximal 480 pro Tag.
 
-Ist Google nicht erreichbar oder das Kontingent erschöpft, übernimmt SchmökerSpot die Daten von
-Open Library und versucht die fehlenden Felder später erneut (alle 6 Stunden, maximal 3 Versuche).
+Ist eine Quelle nicht erreichbar oder das Kontingent erschöpft, übernimmt SchmökerSpot die Daten
+der übrigen Quellen und versucht die fehlenden Felder später erneut (alle 6 Stunden, maximal 3 Versuche).
 Bereits vorhandene Angaben werden nie überschrieben.
 
 ## Sicherheit

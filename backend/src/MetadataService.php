@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace BookSpot;
 
 /**
- * Looks up book metadata by ISBN: Open Library first, Google Books as fallback
- * for missing fields. Runs server-side so the browser needs no third-party
+ * Looks up book metadata by ISBN: Open Library first, then the Deutsche
+ * Nationalbibliothek and Google Books for fields that are still missing.
+ * Runs server-side so the browser needs no third-party
  * connect-src and results can be reused for background enrichment.
  */
 final class MetadataService
@@ -37,29 +38,34 @@ final class MetadataService
             return null;
         }
 
+        // Sources in order of preference; later sources only fill fields that are still empty.
         // Transport errors are counted: "not found" is only final when every source answered.
+        $sources = [
+            'open_library' => $this->openLibrary(...),
+            'dnb' => $this->dnb(...),
+            'google_books' => $this->googleBooks(...),
+        ];
+        $result = [];
         $failures = 0;
-        try {
-            $result = $this->openLibrary($isbn13) ?? [];
-        } catch (MetadataUnavailable) {
-            $result = [];
-            $failures++;
-        }
-        $missing = array_filter(['title', 'authors', 'pages', 'cover_url', 'description', 'genre', 'publisher'], fn ($k) => empty($result[$k]));
-        if ($missing !== []) {
-            try {
-                $google = $this->googleBooks($isbn13) ?? [];
-            } catch (MetadataUnavailable) {
-                $google = [];
-                $failures++;
+        foreach ($sources as $name => $source) {
+            if ($result !== [] && self::missingFields($result) === []) {
+                break;
             }
-            foreach ($google as $key => $value) {
+            try {
+                $data = $source($isbn13) ?? [];
+            } catch (MetadataUnavailable) {
+                $failures++;
+                continue;
+            }
+            $added = false;
+            foreach ($data as $key => $value) {
                 if (empty($result[$key]) && !empty($value)) {
                     $result[$key] = $value;
+                    $added = true;
                 }
             }
-            if ($google !== []) {
-                $result['sources'][] = 'google_books';
+            if ($added) {
+                $result['sources'][] = $name;
             }
         }
         if (empty($result['title'])) {
@@ -101,8 +107,168 @@ final class MetadataService
             'cover_url' => $cover ? preg_replace('#^http://#', 'https://', (string) $cover) : null,
             'description' => is_string($data['notes'] ?? null) ? $data['notes'] : null,
             'language' => null,
-            'sources' => ['open_library'],
         ];
+    }
+
+    /** @return list<string> */
+    private static function missingFields(array $result): array
+    {
+        $wanted = ['title', 'authors', 'pages', 'published_year', 'publisher', 'genre', 'cover_url', 'description'];
+        return array_values(array_filter($wanted, fn ($k) => empty($result[$k])));
+    }
+
+    /**
+     * Deutsche Nationalbibliothek (SRU, MARC21-xml): free, no API key, very complete for
+     * German-language editions. The "Inhaltstext" (blurb) is fetched as description.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function dnb(string $isbn): ?array
+    {
+        if (!Config::bool('METADATA_DNB', true) || !class_exists(\DOMDocument::class)) {
+            return null;
+        }
+        $url = 'https://services.dnb.de/sru/dnb?version=1.1&operation=searchRetrieve&maximumRecords=1&recordSchema=MARC21-xml&query='
+            . rawurlencode('num=' . $isbn);
+        $xml = $this->fetchText($url, 'application/xml');
+        $record = $xml === null ? null : self::parseDnbRecord($xml);
+        if ($record === null) {
+            return null;
+        }
+        if ($record['blurb_url'] !== null) {
+            try {
+                $record['description'] = $this->dnbBlurb($record['blurb_url']);
+            } catch (MetadataUnavailable) {
+                // The record itself is complete enough; the blurb is optional.
+            }
+        }
+        unset($record['blurb_url']);
+        return $record;
+    }
+
+    /**
+     * Parses the first MARC21 record of a DNB SRU response.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function parseDnbRecord(string $xml): ?array
+    {
+        $dom = new \DOMDocument();
+        if (!@$dom->loadXML($xml, LIBXML_NONET)) {
+            return null;
+        }
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('m', 'http://www.loc.gov/MARC21/slim');
+        $record = $xpath->query('//m:record')?->item(0);
+        if ($record === null) {
+            return null;
+        }
+        $fields = function (string $tag) use ($xpath, $record): array {
+            $result = [];
+            foreach ($xpath->query("m:datafield[@tag='$tag']", $record) ?: [] as $field) {
+                $subfields = [];
+                foreach ($xpath->query('m:subfield', $field) ?: [] as $subfield) {
+                    $subfields[$subfield->getAttribute('code')][] = trim($subfield->textContent);
+                }
+                $result[] = $subfields;
+            }
+            return $result;
+        };
+        $first = fn (string $tag, string $code) => $fields($tag)[0][$code][0] ?? null;
+        // MARC keeps ISBD punctuation ("Impact :", "Berlin ;"), strip it.
+        $clean = fn (?string $v) => $v === null ? null : (trim(rtrim(trim($v), ' /:;,.='), " []") ?: null);
+
+        $title = $clean($first('245', 'a'));
+        if ($title === null) {
+            return null;
+        }
+        $subtitle = $clean($first('245', 'b'));
+
+        $authors = [];
+        foreach ([...$fields('100'), ...$fields('700')] as $field) {
+            $relator = $field['4'][0] ?? 'aut';
+            if ($relator === 'aut' && isset($field['a'][0])) {
+                $authors[] = self::invertName($field['a'][0]);
+            }
+        }
+
+        $imprint = $fields('264')[0] ?? $fields('260')[0] ?? [];
+        $year = null;
+        if (preg_match('/(\d{4})/', $imprint['c'][0] ?? '', $m)) {
+            $year = (int) $m[1];
+        } else {
+            $control008 = $xpath->query("m:controlfield[@tag='008']", $record)?->item(0)?->textContent ?? '';
+            if (preg_match('/^\d{4}$/', substr($control008, 7, 4))) {
+                $year = (int) substr($control008, 7, 4);
+            }
+        }
+
+        $pages = 0;
+        if (preg_match_all('/(\d+)\s*(?:S\.|Seiten|p\.|pages)/u', $first('300', 'a') ?? '', $m)) {
+            $pages = (int) end($m[1]);
+        }
+
+        $genre = null;
+        foreach ($fields('653') as $field) {
+            $keyword = $field['a'][0] ?? '';
+            // Skip product form notes "(Produktform)…" and numeric codes.
+            if ($keyword !== '' && !str_starts_with($keyword, '(') && !ctype_digit($keyword)) {
+                $genre = mb_substr($keyword, 0, 100);
+                break;
+            }
+        }
+
+        $blurb = null;
+        foreach ($fields('856') as $field) {
+            if (($field['3'][0] ?? '') === 'Inhaltstext' && isset($field['u'][0])) {
+                $blurb = $field['u'][0];
+                break;
+            }
+        }
+
+        $languages = ['ger' => 'de', 'eng' => 'en', 'fre' => 'fr', 'spa' => 'es', 'ita' => 'it', 'dut' => 'nl', 'swe' => 'sv', 'dan' => 'da', 'nor' => 'no', 'pol' => 'pl'];
+        $language = $first('041', 'a');
+
+        return [
+            'title' => $subtitle ? "$title: $subtitle" : $title,
+            'authors' => implode(', ', array_unique($authors)),
+            'publisher' => $clean($imprint['b'][0] ?? null),
+            'published_year' => $year,
+            'pages' => $pages,
+            'genre' => $genre,
+            'language' => $language === null ? null : ($languages[$language] ?? $language),
+            'cover_url' => null,
+            'description' => null,
+            'blurb_url' => $blurb,
+        ];
+    }
+
+    /** "Steinhardt, Bernd" -> "Bernd Steinhardt" */
+    private static function invertName(string $name): string
+    {
+        $parts = array_map('trim', explode(',', $name, 2));
+        return count($parts) === 2 && $parts[1] !== '' ? $parts[1] . ' ' . $parts[0] : $name;
+    }
+
+    /** Blurb ("Inhaltstext") page linked from the DNB record, as plain text. */
+    private function dnbBlurb(string $url): ?string
+    {
+        // Only follow links to DNB hosts – the URL comes from external data.
+        $host = (string) parse_url($url, PHP_URL_HOST);
+        if (!str_starts_with($url, 'https://') || !preg_match('/(^|\.)(dnb\.de|d-nb\.info)$/', $host)) {
+            return null;
+        }
+        $html = $this->fetchText($url, 'text/html');
+        return $html === null ? null : self::htmlToText($html);
+    }
+
+    public static function htmlToText(string $html): ?string
+    {
+        $html = preg_replace('#<(script|style|head)\b[^>]*>.*?</\1>#is', '', $html) ?? $html;
+        $html = preg_replace('#<br\s*/?>|</(p|div|li|h[1-6])>#i', "\n", $html) ?? $html;
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = trim(preg_replace("/[ \t]+/u", ' ', preg_replace("/\s*\n\s*/u", "\n", $text) ?? $text) ?? $text);
+        return mb_strlen($text) >= 20 ? mb_substr($text, 0, 20000) : null;
     }
 
     /** @return array<string, mixed>|null */
@@ -256,15 +422,19 @@ final class MetadataService
      */
     private function fetchJson(string $url): ?array
     {
-        $body = $this->httpGet !== null ? ($this->httpGet)($url) : self::httpGet($url);
-        if ($body === null || $body === '') {
-            return null;
-        }
-        $json = json_decode($body, true);
+        $body = $this->fetchText($url, 'application/json');
+        $json = $body === null ? null : json_decode($body, true);
         return is_array($json) ? $json : null;
     }
 
-    public static function httpGet(string $url): ?string
+    /** @throws MetadataUnavailable */
+    private function fetchText(string $url, string $accept): ?string
+    {
+        $body = $this->httpGet !== null ? ($this->httpGet)($url) : self::httpGet($url, $accept);
+        return ($body === null || $body === '') ? null : $body;
+    }
+
+    public static function httpGet(string $url, string $accept = 'application/json'): ?string
     {
         $userAgent = 'BookSpot/' . App::VERSION . ' (self-hosted book inventory; ' . (Config::get('APP_URL') ?? 'https://github.com/tobilektri/BookSpot') . ')';
         if (function_exists('curl_init')) {
@@ -276,7 +446,7 @@ final class MetadataService
                 CURLOPT_CONNECTTIMEOUT => 4,
                 CURLOPT_TIMEOUT => self::TIMEOUT,
                 CURLOPT_USERAGENT => $userAgent,
-                CURLOPT_HTTPHEADER => ['Accept: application/json'],
+                CURLOPT_HTTPHEADER => ['Accept: ' . $accept],
             ]);
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
@@ -285,7 +455,7 @@ final class MetadataService
         }
         $context = stream_context_create(['http' => [
             'timeout' => self::TIMEOUT,
-            'header' => "User-Agent: $userAgent\r\nAccept: application/json\r\n",
+            'header' => "User-Agent: $userAgent\r\nAccept: $accept\r\n",
             'ignore_errors' => true,
         ]]);
         $body = @file_get_contents($url, false, $context);

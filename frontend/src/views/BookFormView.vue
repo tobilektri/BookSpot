@@ -89,7 +89,8 @@ async function fetchMetadata() {
       if (metadata[key] && !form[key]) form[key] = metadata[key]
     }
     form.isbn = metadata.isbn13 ?? isbn
-    lookupSource.value = (metadata.sources ?? []).map((s) => (s === 'open_library' ? 'Open Library' : 'Google Books')).join(' + ')
+    const sourceNames = { open_library: 'Open Library', dnb: 'Deutsche Nationalbibliothek', google_books: 'Google Books' }
+    lookupSource.value = (metadata.sources ?? []).map((s) => sourceNames[s] ?? s).join(' + ')
     lookupState.value = 'found'
   } catch (e) {
     lookupState.value = 'none'

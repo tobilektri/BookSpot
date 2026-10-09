@@ -93,6 +93,63 @@ final class MetadataServiceTest extends TestCase
         self::assertNotNull($second);
     }
 
+    public function testParsesDnbMarcRecord(): void
+    {
+        $record = MetadataService::parseDnbRecord((string) file_get_contents(__DIR__ . '/fixtures/dnb_9783548283951.xml'));
+        self::assertSame('Impact: Thriller', $record['title']);
+        self::assertSame('Bernd Steinhardt', $record['authors'], 'MARC "Last, First" is inverted');
+        self::assertSame('Ullstein', $record['publisher']);
+        self::assertSame(2012, $record['published_year']);
+        self::assertSame(518, $record['pages']);
+        self::assertSame('Spannung', $record['genre'], 'product form notes and numeric keywords are skipped');
+        self::assertSame('de', $record['language']);
+        self::assertSame('https://services.dnb.de/plus/idn/1011687097/blurb/', $record['blurb_url']);
+
+        self::assertNull(MetadataService::parseDnbRecord('<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>0</numberOfRecords></searchRetrieveResponse>'));
+        self::assertNull(MetadataService::parseDnbRecord('not xml'));
+    }
+
+    public function testDnbFillsGapsOfSparseOpenLibraryAnswer(): void
+    {
+        $calls = [];
+        $dnb = (string) file_get_contents(__DIR__ . '/fixtures/dnb_9783548283951.xml');
+        $service = new MetadataService($this->db, function (string $url) use (&$calls, $dnb) {
+            $calls[] = (string) parse_url($url, PHP_URL_HOST);
+            return match (true) {
+                str_contains($url, 'openlibrary.org') => self::OPEN_LIBRARY_SPARSE,
+                str_contains($url, '/sru/dnb') => $dnb,
+                str_contains($url, '/blurb/') => '<html><body><h1>Inhaltstext</h1><p>Ein Meteorit rast auf die Erde zu &amp; nur wenige wissen davon.</p></body></html>',
+                default => '{"kind": "books#volumes", "totalItems": 0}',
+            };
+        });
+        $meta = $service->lookup('9783548283951');
+        self::assertSame('Impact', $meta['title'], 'first source wins');
+        self::assertSame('Ullstein Taschenbuchvlg.', $meta['publisher']);
+        self::assertSame('https://covers.openlibrary.org/b/id/8927996-L.jpg', $meta['cover_url']);
+        self::assertSame('Bernd Steinhardt', $meta['authors']);
+        self::assertSame(518, $meta['pages']);
+        self::assertSame(2012, $meta['published_year']);
+        self::assertSame('Spannung', $meta['genre']);
+        self::assertSame("Inhaltstext\nEin Meteorit rast auf die Erde zu & nur wenige wissen davon.", $meta['description']);
+        self::assertSame(['open_library', 'dnb'], $meta['sources']);
+        self::assertFalse($meta['partial']);
+        self::assertNotContains('www.googleapis.com', $calls, 'Google is not asked when nothing is missing');
+    }
+
+    public function testBlurbIsOnlyFetchedFromDnbHosts(): void
+    {
+        $xml = str_replace('https://services.dnb.de/plus/idn/1011687097/blurb/', 'https://evil.example/blurb/', (string) file_get_contents(__DIR__ . '/fixtures/dnb_9783548283951.xml'));
+        $fetched = [];
+        $service = new MetadataService($this->db, function (string $url) use (&$fetched, $xml) {
+            $fetched[] = $url;
+            return str_contains($url, '/sru/dnb') ? $xml : null;
+        });
+        $meta = $service->lookup('9783548283951');
+        self::assertSame('Impact: Thriller', $meta['title']);
+        self::assertNull($meta['description'] ?? null);
+        self::assertSame([], array_values(array_filter($fetched, fn ($u) => str_contains($u, 'evil.example'))));
+    }
+
     public function testNotFoundVersusUnavailable(): void
     {
         $empty = new MetadataService($this->db, fn () => '{}');

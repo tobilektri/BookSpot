@@ -15,7 +15,7 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
   Ausleihen; Lesestatus, Bewertung, Fortschritt, Daten und Notizen sind pro Nutzer getrennt.
 - **Barcode-Scan (EAN-13/ISBN)** über die Handykamera – native `BarcodeDetector`-API, ZXing als
   Fallback. Gefunden → Detailansicht mit Standort; nicht gefunden → Anlege-Dialog mit Daten aus
-  **Open Library** (Fallback **Google Books**).
+  **Open Library**, ergänzt durch die **Deutsche Nationalbibliothek** und **Google Books**.
 - **Asymmetrische Regale**: Regal → Spalten → beliebig viele Fächer pro Spalte, Fächer mit Namen
   (z. B. `L2`). Visuelle Regalansicht mit Buchrücken, Drag & Drop, Mehrfachauswahl „Verschieben nach…“.
 - **Bookstats-CSV-Import** (auch Goodreads/generische CSVs): Duplikaterkennung per ISBN,
@@ -32,7 +32,7 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
   gespeichert und bei Verbindung automatisch über `api/sync.php` übertragen (Konflikterkennung).
 - **Export** als Bookstats-kompatible CSV (re-importierbar).
 - Metadaten-Anreicherung (Cover, Beschreibung, Verlag, Genre) im Hintergrund in kleinen Batches.
-  Google Books benötigt einen eigenen, kostenlosen API-Key → [docs/google-books-api-key.md](docs/google-books-api-key.md).
+  Google Books ist optional und benötigt einen eigenen, kostenlosen API-Key → [docs/google-books-api-key.md](docs/google-books-api-key.md).
 
 ## Architektur
 
@@ -147,7 +147,7 @@ Lesedaten zu übernehmen. Weitere zu ignorierende Genre-Werte: `IMPORT_GENRE_BLO
 | `GET/PUT api/user_books.php?book_id=` | persönliche Lesedaten |
 | `GET/POST/PUT/DELETE api/shelves.php[?id=]` | Regale (`columns: [{label, rows: ["L1", …]}]` oder `[4, 2, 5]`) |
 | `POST api/import.php` · `GET api/export.php` | CSV-Import (multipart) / Export |
-| `GET api/lookup.php?isbn=` | Metadaten von Open Library / Google Books |
+| `GET api/lookup.php?isbn=` | Metadaten von Open Library, DNB und Google Books |
 | `GET api/stats.php?year=` | Statistik |
 | `POST api/sync.php` | Offline-Warteschlange abspielen |
 | `GET/POST api/push.php` | VAPID-Key, (De-)Abonnieren, Test |
