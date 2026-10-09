@@ -80,4 +80,55 @@ final class ShelfServiceTest extends TestCase
             self::assertSame('compartment_not_found', $e->details['errors']['shelf_row']);
         }
     }
+
+    public function testRearrangingCompartmentsMovesTheirBooks(): void
+    {
+        $user = $this->createUser();
+        $shelves = new ShelfService($this->db);
+        $books = new BookService($this->db, $shelves);
+        // Import guessed: column L top-down L1..L3, column M with M1, M2
+        $shelf = $shelves->create(['name' => 'Wohnzimmer', 'columns' => [
+            ['label' => 'L', 'rows' => ['L1', 'L2', 'L3']],
+            ['label' => 'M', 'rows' => ['M1', 'M2']],
+        ]]);
+        $place = fn (string $title, int $col, int $row) => $books->create(['title' => $title, 'shelf_id' => $shelf['id'], 'shelf_col' => $col, 'shelf_row' => $row], $user['id'])['id'];
+        $inL1 = $place('In L1', 1, 1);
+        $inL3 = $place('In L3', 1, 3);
+        $inM1 = $place('In M1', 2, 1);
+        $inM2 = $place('In M2', 2, 2);
+
+        // Reality: L is numbered bottom-up, M1 actually belongs to a new right column, M2 is removed.
+        $updated = $shelves->update($shelf['id'], ['columns' => [
+            ['label' => 'L', 'rows' => [
+                ['name' => 'L3', 'from_col' => 1, 'from_row' => 3],
+                ['name' => 'L2', 'from_col' => 1, 'from_row' => 2],
+                ['name' => 'L1', 'from_col' => 1, 'from_row' => 1],
+            ]],
+            ['label' => 'R', 'rows' => [
+                ['name' => 'Neu', 'from_col' => null, 'from_row' => null],
+                ['name' => 'M1', 'from_col' => 2, 'from_row' => 1],
+            ]],
+        ]]);
+        self::assertSame(1, $updated['unassigned_books'], 'M2 was removed');
+        self::assertSame(['L3', 'L2', 'L1'], $updated['columns'][0]['rows']);
+
+        $books = new BookService($this->db, $shelves); // fresh instance: shelf names are cached per request
+        $location = fn (int $id) => $books->get($id, $user['id'])['location'];
+        self::assertSame('L1', $location($inL1)['compartment']);
+        self::assertSame([1, 3], [$books->get($inL1, $user['id'])['shelf_col'], $books->get($inL1, $user['id'])['shelf_row']]);
+        self::assertSame('L3', $location($inL3)['compartment']);
+        self::assertSame(['shelf' => 'Wohnzimmer', 'column' => 'R', 'compartment' => 'M1'], $location($inM1));
+        self::assertNull($location($inM2));
+
+        // Index index still resolves names to the new positions (used by the CSV import).
+        $index = $shelves->compartmentIndex();
+        self::assertSame([1, 3], [$index['l1']['shelf_col'], $index['l1']['shelf_row']]);
+        self::assertSame([2, 2], [$index['m1']['shelf_col'], $index['m1']['shelf_row']]);
+    }
+
+    public function testPlainNamesKeepPositionsByIndex(): void
+    {
+        self::assertNull(ShelfService::extractMoves([['label' => 'A', 'rows' => ['A1', 'A2']]]));
+        self::assertSame(['1:2' => [1, 1]], ShelfService::extractMoves([['label' => 'A', 'rows' => [['name' => 'A2', 'from_col' => 1, 'from_row' => 2], ['name' => 'X', 'from_col' => null]]]]));
+    }
 }

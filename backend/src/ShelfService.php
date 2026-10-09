@@ -80,6 +80,12 @@ final class ShelfService
      * Updates name/layout. Books in compartments that no longer exist lose their
      * position (they show up as "ohne Standort" again); their number is returned.
      *
+     * Rearranging compartments: each row may be sent as
+     * {"name": "L1", "from_col": 1, "from_row": 4} – the books of the compartment
+     * that used to be at column 1 / row 4 move along to its new position. Rows
+     * without origin are new (empty) compartments. Without any origin information
+     * (plain strings) positions are kept by index as before.
+     *
      * @return array<string, mixed>
      */
     public function update(int $id, array $input): array
@@ -96,9 +102,13 @@ final class ShelfService
         }
         $data['updated_at'] = App::nowString();
 
-        return $this->db->transaction(function () use ($id, $data) {
+        $moves = isset($input['columns']) && is_array($input['columns']) ? self::extractMoves($input['columns']) : null;
+
+        return $this->db->transaction(function () use ($id, $data, $moves) {
             $this->db->update('shelves', $data, ['id' => $id]);
-            $unassigned = $this->detachOrphans($id, self::decodeColumns($data['columns_config']));
+            $unassigned = $moves !== null
+                ? $this->remapBooks($id, $moves)
+                : $this->detachOrphans($id, self::decodeColumns($data['columns_config']));
             $shelf = $this->db->one('SELECT * FROM shelves WHERE id = ?', [$id]) ?? [];
             return $this->present($shelf, []) + ['unassigned_books' => $unassigned];
         });
@@ -293,6 +303,53 @@ final class ShelfService
             'description' => $description === '' ? null : $description,
             'columns_config' => json_encode($columns, JSON_UNESCAPED_UNICODE),
         ];
+    }
+
+    /**
+     * "old col:old row" => [new col, new row] from rows that carry their origin,
+     * or null when the client sent no origin information at all.
+     *
+     * @return array<string, array{0: int, 1: int}>|null
+     */
+    public static function extractMoves(array $columns): ?array
+    {
+        $moves = [];
+        $hasOrigin = false;
+        foreach (array_values($columns) as $c => $column) {
+            $rows = is_array($column) && is_array($column['rows'] ?? null) ? array_values($column['rows']) : [];
+            foreach ($rows as $r => $row) {
+                if (!is_array($row) || !array_key_exists('from_col', $row)) {
+                    continue;
+                }
+                $hasOrigin = true;
+                if (is_numeric($row['from_col']) && is_numeric($row['from_row'] ?? null)) {
+                    $moves[(int) $row['from_col'] . ':' . (int) $row['from_row']] = [$c + 1, $r + 1];
+                }
+            }
+        }
+        return $hasOrigin ? $moves : null;
+    }
+
+    /**
+     * Moves the books of rearranged compartments; books of removed compartments
+     * lose their position. Returns the number of books without position now.
+     *
+     * @param array<string, array{0: int, 1: int}> $moves
+     */
+    private function remapBooks(int $shelfId, array $moves): int
+    {
+        $unassigned = 0;
+        $now = App::nowString();
+        foreach ($this->db->all('SELECT id, shelf_col, shelf_row FROM books WHERE shelf_id = ? AND shelf_col IS NOT NULL', [$shelfId]) as $book) {
+            $target = $moves[(int) $book['shelf_col'] . ':' . (int) $book['shelf_row']] ?? null;
+            if ($target === null) {
+                $this->db->run('UPDATE books SET shelf_id = NULL, shelf_col = NULL, shelf_row = NULL, updated_at = ? WHERE id = ?', [$now, (int) $book['id']]);
+                $unassigned++;
+            } elseif ($target !== [(int) $book['shelf_col'], (int) $book['shelf_row']]) {
+                $this->db->run('UPDATE books SET shelf_col = ?, shelf_row = ?, updated_at = ? WHERE id = ?', [$target[0], $target[1], $now, (int) $book['id']]);
+            }
+        }
+        return $unassigned;
     }
 
     /** @param list<array{label: string, rows: list<string>}> $columns */

@@ -56,13 +56,26 @@ function onDrop(event, c, r) {
   }
 }
 
-const compartmentHeight = computed(() => (props.mode === 'view' ? 'min-h-24' : props.mode === 'pick' ? 'min-h-11' : 'min-h-7'))
+const compartmentHeight = computed(() => (props.mode === 'view' ? 'min-h-24 lg:min-h-28' : props.mode === 'pick' ? 'min-h-11' : 'min-h-7'))
+
+// Minimum column width per mode; wider screens stretch the columns (1fr).
+const MIN_COLUMN = { view: 8, pick: 4.5, preview: 1.75 } // rem
+const gridStyle = computed(() => {
+  const n = Math.max(1, props.shelf.columns.length)
+  const min = MIN_COLUMN[props.mode] ?? 4
+  return {
+    gridTemplateColumns: `repeat(${n}, minmax(${min}rem, 1fr))`,
+    // grid gap 0.375rem + padding 2 × 0.375rem
+    minWidth: `calc(${n} * ${min}rem + ${n - 1} * 0.375rem + 0.75rem)`,
+  }
+})
 </script>
 
 <template>
   <div class="no-scrollbar overflow-x-auto">
-    <div class="flex min-w-max gap-1.5 rounded-xl bg-amber-900/80 p-1.5 shadow-inner dark:bg-amber-950">
-      <div v-for="(column, c) in shelf.columns" :key="c" class="flex flex-col gap-1.5" :class="mode === 'preview' ? 'w-12' : mode === 'pick' ? 'w-20' : 'w-36 sm:w-44'">
+    <!-- Columns share the available width; below the minimum width the shelf scrolls horizontally. -->
+    <div class="grid gap-1.5 rounded-xl bg-amber-900/80 p-1.5 shadow-inner dark:bg-amber-950" :style="gridStyle">
+      <div v-for="(column, c) in shelf.columns" :key="c" class="flex min-w-0 flex-col gap-1.5">
         <div v-if="mode !== 'preview'" class="truncate px-1 text-center text-xs font-semibold text-amber-50">{{ column.label }}</div>
         <button
           v-for="(name, r) in column.rows"
@@ -81,21 +94,21 @@ const compartmentHeight = computed(() => (props.mode === 'view' ? 'min-h-24' : p
           @dragleave="dragOver = null"
           @drop.prevent="onDrop($event, c, r)"
         >
-          <span class="flex items-center justify-between px-1.5 pt-0.5 text-[10px] font-medium text-stone-500 dark:text-stone-400">
+          <span class="flex items-center justify-between gap-1 px-1.5 pt-0.5 text-[10px] font-medium text-stone-500 dark:text-stone-400">
             <span class="truncate">{{ name }}</span>
-            <span v-if="mode !== 'preview' && count(c, r)" class="rounded bg-stone-200 px-1 dark:bg-stone-700">{{ count(c, r) }}</span>
+            <span v-if="mode !== 'preview' && count(c, r)" class="shrink-0 rounded bg-stone-200 px-1 dark:bg-stone-700">{{ count(c, r) }}</span>
           </span>
           <span v-if="mode === 'view'" class="flex flex-1 items-end gap-px overflow-hidden px-1 pb-1">
             <span
-              v-for="book in (byCompartment[`${c + 1}:${r + 1}`] ?? []).slice(0, 24)"
+              v-for="book in (byCompartment[`${c + 1}:${r + 1}`] ?? []).slice(0, 80)"
               :key="book.id"
               draggable="true"
-              class="flex h-full max-h-20 min-h-14 w-3.5 shrink-0 cursor-grab items-center justify-center overflow-hidden rounded-[2px] text-[7px] leading-none text-white/90 shadow-sm sm:w-4"
+              class="flex max-h-24 min-h-14 w-3.5 shrink-0 cursor-grab items-center justify-center overflow-hidden rounded-[2px] text-[7px] leading-none text-white/90 shadow-sm sm:w-4"
               :style="{ background: bookColor(book.title), height: `${60 + ((book.pages || 300) % 7) * 5}%` }"
               :title="`${book.title} – ${book.authors}`"
               @dragstart="onDragStart($event, book)"
             >
-              <span class="whitespace-nowrap [writing-mode:vertical-rl] rotate-180">{{ book.title.slice(0, 18) }}</span>
+              <span class="whitespace-nowrap [writing-mode:vertical-rl] rotate-180">{{ book.title.slice(0, 22) }}</span>
             </span>
           </span>
         </button>
