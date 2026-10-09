@@ -5,6 +5,7 @@ import { api } from '../lib/api.js'
 import { t, errorMessage } from '../lib/i18n.js'
 import { toast } from '../lib/store.js'
 import { pushState, refreshPushState, pushNeedsInstall, enablePush, disablePush } from '../lib/push.js'
+import { store } from '../lib/store.js'
 import { resetNudge } from '../lib/engagement.js'
 import PushUnblockHelp from './PushUnblockHelp.vue'
 
@@ -43,7 +44,8 @@ async function test() {
 <template>
   <div class="space-y-3 text-sm">
     <p class="text-stone-600 dark:text-stone-400">{{ t('settings.pushHint') }}</p>
-    <p v-if="pushNeedsInstall()" class="text-amber-700 dark:text-amber-400">
+    <p v-if="store.impersonator" class="text-violet-700 dark:text-violet-300">{{ t('impersonate.noPush') }}</p>
+    <p v-else-if="pushNeedsInstall()" class="text-amber-700 dark:text-amber-400">
       {{ t('pushOffer.iosInstallFirst') }} <a href="#/settings#install" class="font-medium underline">{{ t('settings.installApp') }}</a>
     </p>
     <p v-else-if="!pushState.supported" class="text-amber-700">{{ t('settings.pushUnsupported') }}</p>

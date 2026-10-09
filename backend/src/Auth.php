@@ -67,12 +67,67 @@ final class Auth
         if (!is_int($id)) {
             return null;
         }
-        $user = (new self(App::db()))->findById($id);
+        $auth = new self(App::db());
+        $user = $auth->findById($id);
         if ($user === null) {
-            unset($_SESSION['uid']);
+            unset($_SESSION['uid'], $_SESSION['impersonator_id']);
+            return null;
+        }
+        // An impersonation ends when the impersonating admin no longer exists or lost the role.
+        $impersonatorId = $_SESSION['impersonator_id'] ?? null;
+        if (is_int($impersonatorId) && ($auth->findById($impersonatorId)['role'] ?? null) !== self::ROLE_ADMIN) {
+            self::logoutSession();
             return null;
         }
         return self::$currentUser = $user;
+    }
+
+    /**
+     * The admin who is currently acting as another user, or null.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function impersonator(): ?array
+    {
+        if (self::user() === null) {
+            return null;
+        }
+        $id = $_SESSION['impersonator_id'] ?? null;
+        return is_int($id) ? (new self(App::db()))->findById($id) : null;
+    }
+
+    /** Admin acts as another user ("Als … anmelden"). The original admin is kept in the session. */
+    public static function startImpersonation(array $admin, int $targetId): array
+    {
+        if (self::impersonator() !== null) {
+            throw new ApiException('already_impersonating', 409);
+        }
+        if ($admin['role'] !== self::ROLE_ADMIN) {
+            throw new ApiException('forbidden', 403);
+        }
+        if ((int) $admin['id'] === $targetId) {
+            throw new ApiException('cannot_impersonate_self', 409);
+        }
+        $target = (new self(App::db()))->findById($targetId) ?? throw ApiException::notFound('user_not_found');
+        self::startSession();
+        session_regenerate_id(true);
+        $_SESSION['impersonator_id'] = (int) $admin['id'];
+        $_SESSION['uid'] = (int) $target['id'];
+        self::$currentUser = $target;
+        error_log(sprintf('[BookSpot] Admin #%d (%s) impersonates user #%d (%s)', $admin['id'], $admin['username'], $target['id'], $target['username']));
+        return $target;
+    }
+
+    /** Back to the admin's own account. @return array<string, mixed> */
+    public static function stopImpersonation(): array
+    {
+        $admin = self::impersonator() ?? throw new ApiException('not_impersonating', 409);
+        self::startSession();
+        session_regenerate_id(true);
+        unset($_SESSION['impersonator_id']);
+        $_SESSION['uid'] = (int) $admin['id'];
+        self::$currentUser = $admin;
+        return $admin;
     }
 
     /** @return array<string, mixed> */
@@ -101,6 +156,7 @@ final class Auth
     {
         self::startSession();
         session_regenerate_id(true);
+        unset($_SESSION['impersonator_id']);
         $_SESSION['uid'] = (int) $user['id'];
         self::$currentUser = $user;
     }
@@ -357,8 +413,9 @@ final class Auth
     /** @return list<array<string, mixed>> */
     public function listUsers(): array
     {
+        $pending = (new InviteService($this->db))->pending();
         return array_map(
-            self::publicUser(...),
+            fn ($row) => self::publicUser($row) + ['invite_pending_until' => $pending[(int) $row['id']] ?? null],
             $this->db->all('SELECT id, username, email, role, locale, created_at, last_login_at FROM users ORDER BY username')
         );
     }

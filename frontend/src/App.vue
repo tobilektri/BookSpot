@@ -1,7 +1,11 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, BookOpen, ScanBarcode, LibraryBig, ChartColumn, Settings, WifiOff, RefreshCw } from '@lucide/vue'
+import { House, BookOpen, ScanBarcode, LibraryBig, ChartColumn, Settings, WifiOff, RefreshCw, VenetianMask } from '@lucide/vue'
+import { api } from './lib/api.js'
+import { switchIdentity } from './lib/session.js'
+import { errorMessage } from './lib/i18n.js'
+import { toast } from './lib/store.js'
 import { store } from './lib/store.js'
 import { t, appName } from './lib/i18n.js'
 import logoUrl from './assets/logo.svg'
@@ -18,7 +22,7 @@ watch(
     if (!user && store.ready && !route.meta.public) router.replace({ name: 'login', query: { next: route.fullPath } })
   },
 )
-const showChrome = computed(() => store.user && route.name !== 'login')
+const showChrome = computed(() => store.user && route.name !== 'login' && !route.meta.bare)
 
 const nav = computed(() => [
   { to: '/', name: 'home', label: t('nav.home'), icon: House },
@@ -33,6 +37,17 @@ function isActive(item) {
   return route.path.startsWith(item.to)
 }
 
+const leaving = ref(false)
+async function stopImpersonation() {
+  leaving.value = true
+  try {
+    await switchIdentity(() => api('auth.php', { method: 'POST', query: { action: 'stop_impersonation' } }), '#/settings#users')
+  } catch (e) {
+    leaving.value = false
+    toast(errorMessage(e), 'error')
+  }
+}
+
 function applyUpdate() {
   store.updateAvailable?.waiting?.postMessage({ type: 'SKIP_WAITING' })
 }
@@ -44,6 +59,18 @@ function applyUpdate() {
       v-if="showChrome"
       class="sticky top-0 z-30 border-b border-stone-200 bg-stone-50/90 backdrop-blur dark:border-stone-800 dark:bg-stone-950/90"
     >
+      <!-- Impersonation bar: always visible while an admin acts as another user -->
+      <div
+        v-if="store.impersonator && store.user"
+        class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-violet-700 px-4 py-2 text-center text-sm text-white"
+        role="status"
+      >
+        <VenetianMask class="h-4 w-4 shrink-0" />
+        <span>{{ t('impersonate.banner', { user: store.user.username, admin: store.impersonator.username }) }}</span>
+        <button class="rounded-lg bg-white/20 px-3 py-1 font-medium hover:bg-white/30" :disabled="leaving" @click="stopImpersonation">
+          {{ t('impersonate.stop', { admin: store.impersonator.username }) }}
+        </button>
+      </div>
       <div class="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
         <RouterLink to="/" class="flex items-center gap-2 font-serif text-lg font-semibold text-brand-700 dark:text-brand-400">
           <img :src="logoUrl" alt="" class="h-7 w-7" />
@@ -107,7 +134,7 @@ function applyUpdate() {
       <button class="btn-primary !py-1.5" @click="applyUpdate">{{ t('common.reload') }}</button>
     </div>
 
-    <EngagementPrompts v-if="showChrome && !store.updateAvailable" />
+    <EngagementPrompts v-if="showChrome && !store.updateAvailable && !store.impersonator" />
     <ToastStack />
   </div>
 </template>

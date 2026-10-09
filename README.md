@@ -85,7 +85,11 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
 5. Ordner `var/` beschreibbar machen (Sessions, Logs, SQLite).
 6. Seite aufrufen → **erstes Konto anlegen** (wird Admin). Die Tabellen werden automatisch erstellt.
    Weitere Konten legen Admins unter *Einstellungen → Benutzerverwaltung* an – mit der Rolle
-   **Admin** (darf Benutzer verwalten) oder **Benutzer** (darf es nicht). Optional:
+   **Admin** (darf Benutzer verwalten) oder **Benutzer** (darf es nicht). Auf Wunsch geht eine
+   **Einladungs-E-Mail** (PHP `mail()`, Absender `MAIL_FROM`) mit einem Link raus, über den die
+   Person ihr Passwort selbst festlegt; klappt der Versand nicht, zeigt die App den Link zum
+   Weitergeben. Admins können sich zur Hilfe **als ein anderer Benutzer anmelden** (violette
+   Leiste „Zurück zu …“). Optional:
    Selbst-Registrierung mit `ALLOW_REGISTRATION=true`, oder per CLI `php backend/bin/create-user.php`.
 7. **Cronjob** (stündlich, für Push-Erinnerungen und Metadaten): Die fertige URL mit Token steht
    für Admins unter *Einstellungen → Cronjob* (der Token wird automatisch erzeugt; ein fester

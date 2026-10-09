@@ -38,6 +38,7 @@ function lastKnownUser() {
 
 export function applyStatus(status) {
   store.user = status.user
+  store.impersonator = status.impersonator ?? null
   store.registrationOpen = status.registration_open
   store.needsSetup = status.needs_setup
   store.pushAvailable = status.push_available
@@ -66,8 +67,20 @@ export async function logout() {
   await clearLocalData()
 }
 
+/**
+ * Switches the logged-in identity (impersonation start/stop, invitation link):
+ * runs the request, drops the previous user's cached data and reloads the app
+ * so that no state of the other account survives.
+ */
+export async function switchIdentity(request, targetHash = '#/') {
+  await request()
+  await clearLocalData()
+  window.location.hash = targetHash
+  window.location.reload()
+}
+
 /** Personal data and pending offline changes must not survive a logout / ended session. */
-async function clearLocalData() {
+export async function clearLocalData() {
   try {
     localStorage.removeItem('bookspot.user')
     await db.books.clear()

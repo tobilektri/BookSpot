@@ -9,6 +9,7 @@ use BookSpot\App;
 use BookSpot\ApiException;
 use BookSpot\Auth;
 use BookSpot\Config;
+use BookSpot\InviteService;
 use BookSpot\PushService;
 use BookSpot\Request;
 
@@ -19,6 +20,7 @@ Api::run(function (Request $req) {
         // App start: who am I, can I register, which features are available?
         'status' => [
             'user' => Auth::user(),
+            'impersonator' => ($imp = Auth::impersonator()) === null ? null : ['id' => $imp['id'], 'username' => $imp['username']],
             'registration_open' => $auth->registrationOpen(),
             'needs_setup' => $auth->userCount() === 0,
             'push_available' => PushService::available(),
@@ -41,6 +43,18 @@ Api::run(function (Request $req) {
             );
             Auth::loginSession($user);
             Api::status(201);
+            return ['user' => $user];
+        })(),
+        'stop_impersonation' => (function () use ($req) {
+            $req->isSafe() && Api::methodNotAllowed();
+            return ['user' => Auth::stopImpersonation()];
+        })(),
+        // Invitation link (public): who is invited, then set the password and log in.
+        'invite_info' => (new InviteService(App::db()))->info((string) $req->query('token', '')),
+        'accept_invite' => (function () use ($req) {
+            $req->isSafe() && Api::methodNotAllowed();
+            $user = (new InviteService(App::db()))->accept((string) $req->input('token', ''), (string) $req->input('password', ''));
+            Auth::loginSession($user);
             return ['user' => $user];
         })(),
         'logout' => (function () use ($req) {

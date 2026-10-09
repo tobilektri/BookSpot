@@ -26,6 +26,9 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.org}
       METADATA_LOOKUP: ${METADATA_LOOKUP:-true}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      INVITE_VALID_DAYS: ${INVITE_VALID_DAYS:-7}
       GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
     volumes:
       - app_var:/var/www/html/var

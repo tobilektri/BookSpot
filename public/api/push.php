@@ -31,6 +31,10 @@ Api::run(function (Request $req) {
 
     return match ($req->action()) {
         'subscribe' => (function () use ($push, $user, $req) {
+            // While an admin acts as another user, this device must not receive that user's pushes.
+            if (Auth::impersonator() !== null) {
+                throw new ApiException('impersonation_no_push', 409);
+            }
             $push->subscribe($user['id'], $req->body, $req->header('User-Agent'));
             return ['ok' => true];
         })(),

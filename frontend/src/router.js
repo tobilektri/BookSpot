@@ -8,6 +8,7 @@ export const router = createRouter({
   scrollBehavior: (to, from, saved) => saved ?? { top: 0 },
   routes: [
     { path: '/login', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
+    { path: '/invite/:token([0-9a-f]{64})', name: 'invite', component: () => import('./views/InviteView.vue'), props: true, meta: { public: true, bare: true } },
     { path: '/', name: 'home', component: () => import('./views/DashboardView.vue') },
     { path: '/books', name: 'books', component: () => import('./views/BooksView.vue') },
     { path: '/books/new', name: 'book-new', component: () => import('./views/BookFormView.vue') },

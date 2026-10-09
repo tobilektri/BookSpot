@@ -4,6 +4,7 @@ import { reactive } from 'vue'
 export const store = reactive({
   ready: false,
   user: null,
+  impersonator: null, // {id, username} while an admin acts as another user
   registrationOpen: false,
   needsSetup: false,
   pushAvailable: false,
