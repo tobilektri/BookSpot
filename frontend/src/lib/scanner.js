@@ -92,15 +92,22 @@ export async function startScanner(video, onIsbn, { deviceId = rememberedCamera(
     stopEngine = () => clearTimeout(timer)
   } else {
     engine = 'ZXing'
-    const [{ BrowserMultiFormatReader }, { DecodeHintType, BarcodeFormat }] = await Promise.all([
+    const [{ BrowserMultiFormatOneDReader, HTMLCanvasElementLuminanceSource }, { DecodeHintType, BarcodeFormat }] = await Promise.all([
       import('@zxing/browser'),
       import('@zxing/library'),
     ])
+    // ISBN barcodes are always EAN-13, so the 1D reader is enough (and faster). The generic
+    // BrowserMultiFormatReader of @zxing/library 0.23 logs a console warning for every frame
+    // without a barcode (NotFoundException is no longer a ReaderException).
+    // @zxing/browser 0.2.1: rotating a frame always throws "Could not create a Canvas element"
+    // (tempCanvasElement is never initialised) and would not swap width/height either. Without
+    // rotation support TRY_HARDER still scans more rows of the unrotated frame.
+    HTMLCanvasElementLuminanceSource.prototype.isRotateSupported = () => false
     const hints = new Map([
       [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13]],
       [DecodeHintType.TRY_HARDER, true],
     ])
-    const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 100 })
+    const reader = new BrowserMultiFormatOneDReader(hints, { delayBetweenScanAttempts: 100 })
     const controls = await reader.decodeFromStream(stream, video, (result) => {
       if (result) report(result.getText())
     })

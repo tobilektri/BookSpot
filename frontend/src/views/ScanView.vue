@@ -25,13 +25,24 @@ onMounted(() => {
   loadCatalog().catch(() => {})
   if (secure && navigator.mediaDevices?.getUserMedia) start()
 })
-onUnmounted(stop)
+// Starting the camera takes a moment (permission prompt, loading ZXing). If the page is left
+// in the meantime, the scanner must not keep running in the background.
+let unmounted = false
+onUnmounted(() => {
+  unmounted = true
+  stop()
+})
 
 async function start(deviceId) {
   cameraError.value = ''
   starting.value = true
   try {
-    scanner.value = await startScanner(video.value, handleIsbn, deviceId ? { deviceId } : undefined)
+    const started = await startScanner(video.value, handleIsbn, deviceId ? { deviceId } : undefined)
+    if (unmounted) {
+      started.stop()
+      return
+    }
+    scanner.value = started
     // Device names are only readable once the camera permission was granted.
     cameras.value = await listCameras()
   } catch (e) {
