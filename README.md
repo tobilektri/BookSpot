@@ -71,9 +71,12 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
    eine fertige `bookspot.zip` mit `vendor/` und gebautem Frontend. Alternativ lokal bauen:
    `composer install --no-dev && cd frontend && npm ci && npm run build`.
 2. **Hochladen** (FTP) in einen Ordner, z. B. `/bookspot`.
-3. **Domain/Subdomain auf den Ordner `public/` zeigen lassen** (bei Lima-City: Domain →
-   *Ziel/Verzeichnis* ändern). Geht das nicht, leitet die mitgelieferte `.htaccess` im
-   Projektordner auf `public/` um und sperrt `backend/`, `vendor/`, `var/` und `.env`.
+3. **Domain/Subdomain auf den Projektordner oder auf `public/` zeigen lassen** (bei Lima-City:
+   Domain → *Ziel/Verzeichnis*). Beides funktioniert:
+   - Projektordner (z. B. `bookspot/`): Die mitgelieferte `.htaccess` leitet alle Anfragen intern
+     nach `public/` um und sperrt `backend/`, `vendor/`, `var/`, `.env` und Konfigurationsdateien
+     (403). Nötig: Apache mit `mod_rewrite` und `.htaccess`-Unterstützung.
+   - `public/`: Dann ist der Rest des Projekts gar nicht erst erreichbar.
 4. **Datenbank anlegen** (Zeichensatz `utf8mb4`) und `.env.example` als `.env` kopieren:
    `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` und `APP_URL` eintragen.
    Für vollständige Buchdaten zusätzlich einen kostenlosen `GOOGLE_BOOKS_API_KEY`
@@ -96,9 +99,10 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
 
 ### Fehlersuche
 
-- **„App installieren“ wird nicht angeboten / Icons liefern 404:** Ältere Versionen lagen unter
-  `/icons/`. Viele Apache-Server leiten `/icons/` global auf ihren eigenen Symbol-Ordner um, dann
-  fehlen die App-Icons und Chrome bietet keine Installation an. Seit Version 1.1 liegen die Icons
+- **„App installieren“ wird nicht angeboten / Icons liefern 404:** Bis Version 1.0 lagen die Icons
+  unter `/icons/`. Viele Apache-Server leiten `/icons/` global auf ihren eigenen Symbol-Ordner um
+  (`Alias /icons/` – greift noch vor jeder `.htaccess`), dann fehlen die App-Icons, Chrome bietet
+  keine Installation an und der Service Worker startet nicht. Seit Version 1.1 liegen die Icons
   unter `/app-icons/` – nach einem Update den alten Ordner `public/icons` einfach löschen.
 - **Nach dem Leeren der Datenbank** werden die Tabellen beim nächsten Aufruf automatisch neu
   angelegt und die Ersteinrichtung erscheint wieder.
