@@ -241,6 +241,14 @@ const de = {
       scan: 'Erstes Buch scannen', import: 'CSV importieren', users: 'Benutzer einladen', books: 'Bücher ansehen',
     },
   },
+  newLocation: {
+    button: 'Neuer Standort', title: 'Neuen Standort anlegen', shelfLabel: 'Regal', compartment: 'Neues Fach', shelf: 'Neues Regal',
+    newColumn: '+ Neue Spalte', compartmentName: 'Name des Fachs', createCompartment: 'Fach anlegen', createShelf: 'Regal anlegen',
+    compartmentHint: 'Das Fach kommt unten in die Spalte. Anordnen kannst du es später unter „Regal bearbeiten“ – Bücher bleiben dabei an ihrem Platz.',
+    columnCount: 'Spalten', rowCount: 'Fächer pro Spalte', shelfPlaceholder: 'z. B. Bücherregal Flur',
+    shelfHint: 'Die Fächer heißen automatisch A1, A2 … B1 … – umbenennen und anordnen geht unter „Regal bearbeiten“.',
+    created: 'Standort angelegt.', noShelves: 'Noch kein Regal vorhanden.',
+  },
   sync: {
     done: '{n} Offline-Änderung(en) synchronisiert.', conflicts: '{n} Änderung(en) waren veraltet – neuere Daten vom Server behalten.',
     errors: '{n} Änderung(en) konnten nicht übernommen werden.', queued: 'Offline gespeichert – wird synchronisiert, sobald du online bist.',
@@ -510,6 +518,14 @@ const en = {
       p1: 'Tip: the scanner is the fastest way to add books.', p2: 'Questions about a book? Just tap it – everything is there.', p3: 'Changes made offline are synced automatically.',
       scan: 'Scan first book', import: 'Import CSV', users: 'Invite users', books: 'Browse books',
     },
+  },
+  newLocation: {
+    button: 'New location', title: 'Create a new location', shelfLabel: 'Shelf', compartment: 'New compartment', shelf: 'New shelf',
+    newColumn: '+ New column', compartmentName: 'Compartment name', createCompartment: 'Create compartment', createShelf: 'Create shelf',
+    compartmentHint: 'The compartment is added at the bottom of the column. Arrange it later under “Edit shelf” – books stay where they are.',
+    columnCount: 'Columns', rowCount: 'Compartments per column', shelfPlaceholder: 'e.g. hallway bookcase',
+    shelfHint: 'Compartments are named A1, A2 … B1 … automatically – rename and arrange them under “Edit shelf”.',
+    created: 'Location created.', noShelves: 'No shelf yet.',
   },
   sync: {
     done: '{n} offline change(s) synced.', conflicts: '{n} change(s) were outdated – kept newer server data.',

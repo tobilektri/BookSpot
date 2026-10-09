@@ -1,12 +1,24 @@
+<script>
+const openModals = []
+</script>
+
 <script setup>
 import { onMounted, onUnmounted } from 'vue'
 import { X } from '@lucide/vue'
 
 defineProps({ title: String, wide: Boolean })
 const emit = defineEmits(['close'])
-const onKey = (e) => e.key === 'Escape' && emit('close')
-onMounted(() => document.addEventListener('keydown', onKey))
-onUnmounted(() => document.removeEventListener('keydown', onKey))
+// Stacked dialogs (e.g. "Move to …" -> "New location"): Escape closes only the top one.
+const token = Symbol('modal')
+const onKey = (e) => e.key === 'Escape' && openModals.at(-1) === token && emit('close')
+onMounted(() => {
+  openModals.push(token)
+  document.addEventListener('keydown', onKey)
+})
+onUnmounted(() => {
+  openModals.splice(openModals.indexOf(token), 1)
+  document.removeEventListener('keydown', onKey)
+})
 </script>
 
 <template>
