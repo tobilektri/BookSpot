@@ -8,11 +8,12 @@ import { fileURLToPath } from 'node:url'
 const outDir = fileURLToPath(new URL('../public', import.meta.url))
 
 // Removes stale hashed bundles from ../public/assets while keeping public/api/*.php.
+// public/icons is the pre-1.1 icon folder (renamed, see static/app-icons).
 const cleanAssets = () => ({
   name: 'bookspot-clean-assets',
   apply: 'build',
   buildStart() {
-    rmSync(`${outDir}/assets`, { recursive: true, force: true })
+    for (const dir of ['assets', 'icons']) rmSync(`${outDir}/${dir}`, { recursive: true, force: true })
   },
 })
 
@@ -49,14 +50,15 @@ export default defineConfig({
         background_color: '#fafaf9',
         theme_color: '#b45309',
         categories: ['books', 'productivity', 'lifestyle'],
+        // Not "icons/": Apache aliases /icons/ server-wide to its own folder on many hosts (404).
         icons: [
-          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'app-icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'app-icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'app-icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         shortcuts: [
-          { name: 'Buch scannen', short_name: 'Scannen', url: './#/scan', icons: [{ src: 'icons/icon-192.png', sizes: '192x192' }] },
-          { name: 'Statistik', short_name: 'Statistik', url: './#/stats', icons: [{ src: 'icons/icon-192.png', sizes: '192x192' }] },
+          { name: 'Buch scannen', short_name: 'Scannen', url: './#/scan', icons: [{ src: 'app-icons/icon-192.png', sizes: '192x192' }] },
+          { name: 'Statistik', short_name: 'Statistik', url: './#/stats', icons: [{ src: 'app-icons/icon-192.png', sizes: '192x192' }] },
         ],
       },
       devOptions: { enabled: false },

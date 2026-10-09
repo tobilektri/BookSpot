@@ -9,6 +9,7 @@ public/index.html
 public/sw.js
 public/manifest.webmanifest
 public/icons
+public/app-icons
 public/favicon.svg
 tests
 *.md

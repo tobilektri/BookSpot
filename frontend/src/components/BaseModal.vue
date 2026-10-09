@@ -18,11 +18,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
         role="dialog"
         aria-modal="true"
       >
-        <div class="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-stone-800">
+        <div class="flex items-center justify-between border-b border-stone-200 px-5 py-3.5 dark:border-stone-800">
           <h2 class="font-semibold">{{ title }}</h2>
           <button class="btn-ghost !p-1.5" aria-label="Close" @click="emit('close')"><X class="h-5 w-5" /></button>
         </div>
-        <div class="safe-bottom overflow-y-auto p-4">
+        <!-- Bottom padding never below 1.25rem, more on iPhones with home indicator. -->
+        <div class="overflow-y-auto px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <slot />
         </div>
       </div>

@@ -69,7 +69,7 @@ jobs:
             public/manifest.webmanifest
             public/favicon.svg
             public/assets
-            public/icons
+            public/app-icons
 
   # Ready-to-upload bundle for shared hosting (FTP): includes vendor/ and the built frontend.
   bundle:

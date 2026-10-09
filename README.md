@@ -94,6 +94,15 @@ MySQL/MariaDB-Datenbank. Kein SSH, Node.js oder Root nötig.
 
 > **HTTPS ist Pflicht** für Kamera-Zugriff, Service Worker und Push (außer auf `localhost`).
 
+### Fehlersuche
+
+- **„App installieren“ wird nicht angeboten / Icons liefern 404:** Ältere Versionen lagen unter
+  `/icons/`. Viele Apache-Server leiten `/icons/` global auf ihren eigenen Symbol-Ordner um, dann
+  fehlen die App-Icons und Chrome bietet keine Installation an. Seit Version 1.1 liegen die Icons
+  unter `/app-icons/` – nach einem Update den alten Ordner `public/icons` einfach löschen.
+- **Nach dem Leeren der Datenbank** werden die Tabellen beim nächsten Aufruf automatisch neu
+  angelegt und die Ersteinrichtung erscheint wieder.
+
 ## Docker
 
 ```bash

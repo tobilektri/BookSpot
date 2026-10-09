@@ -43,7 +43,9 @@ watch([() => route.name, () => store.user?.id, () => install.promptEvent, () => 
 
 function pick() {
   if (!store.user || !PAGES.includes(route.name)) return
-  if (installMethod() && nudgeDue('install')) return open('install')
+  // Desktop Chrome/Edge without install event is usually already installed – no nagging there.
+  const method = installMethod()
+  if (method && method !== 'desktop-chromium' && nudgeDue('install')) return open('install')
   if (pushOfferable() && nudgeDue('push')) return open(pushState.permission === 'denied' ? 'push-denied' : 'push')
 }
 

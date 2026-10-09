@@ -108,7 +108,7 @@ async function remove(user) {
     <p class="text-xs text-stone-500">{{ t('users.rolesHint') }}</p>
 
     <BaseModal v-if="showCreate" :title="t('users.new')" @close="showCreate = false">
-      <form class="space-y-3" @submit.prevent="create">
+      <form class="space-y-4" @submit.prevent="create">
         <div>
           <label class="label" for="ua_username">{{ t('auth.username') }}</label>
           <input id="ua_username" v-model="form.username" class="input" required minlength="3" maxlength="50" autocomplete="off" />
@@ -125,7 +125,7 @@ async function remove(user) {
           <p class="mt-1 text-xs text-stone-500">{{ t('auth.passwordHint') }}</p>
           <p v-if="errors.password" class="field-error">{{ fieldError(errors.password) }}</p>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label class="label" for="ua_role">{{ t('users.role') }}</label>
             <select id="ua_role" v-model="form.role" class="input">
@@ -141,7 +141,7 @@ async function remove(user) {
             </select>
           </div>
         </div>
-        <div class="flex justify-end gap-2">
+        <div class="flex justify-end gap-2 border-t border-stone-100 pt-4 dark:border-stone-800">
           <button type="button" class="btn-secondary" @click="showCreate = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="busy">{{ t('users.create') }}</button>
         </div>
@@ -149,7 +149,7 @@ async function remove(user) {
     </BaseModal>
 
     <BaseModal v-if="passwordFor" :title="t('users.setPasswordFor', { name: passwordFor.username })" @close="passwordFor = null">
-      <form class="space-y-3" @submit.prevent="savePassword">
+      <form class="space-y-4" @submit.prevent="savePassword">
         <input v-model="newPassword" type="password" class="input" required minlength="8" autocomplete="new-password" :aria-label="t('settings.newPassword')" />
         <p class="text-xs text-stone-500">{{ t('auth.passwordHint') }}</p>
         <div class="flex justify-end gap-2">

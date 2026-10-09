@@ -77,8 +77,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'SchmökerSpot', {
       body: data.body || '',
-      icon: new URL('icons/icon-192.png', scope).href,
-      badge: new URL('icons/badge-96.png', scope).href,
+      icon: new URL('app-icons/icon-192.png', scope).href,
+      badge: new URL('app-icons/badge-96.png', scope).href,
       tag: data.tag,
       renotify: Boolean(data.tag),
       data: { url: new URL(data.url || './', scope).href },

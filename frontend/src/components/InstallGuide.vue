@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { Share, SquarePlus, Ellipsis, EllipsisVertical, Compass, ToggleRight, Smartphone, Copy } from '@lucide/vue'
+import { Share, SquarePlus, Ellipsis, EllipsisVertical, Compass, ToggleRight, Smartphone, Copy, MonitorDown } from '@lucide/vue'
 import { t } from '../lib/i18n.js'
 import { platform, installMethod } from '../lib/engagement.js'
 import { toast } from '../lib/store.js'
@@ -75,6 +75,15 @@ async function copyLink() {
 
     <template v-else-if="current === 'mac-safari'">
       <p>{{ t('install.macSafari') }}</p>
+    </template>
+
+    <!-- Chrome / Edge on the desktop without install event -->
+    <template v-else-if="current === 'desktop-chromium'">
+      <ol class="space-y-2">
+        <li class="flex gap-3"><span class="step">1</span><span>{{ t('install.desktopStep1') }} <span class="icon-chip"><MonitorDown class="h-4 w-4" /></span></span></li>
+        <li class="flex gap-3"><span class="step">2</span><span>{{ platform.edge ? t('install.desktopStep2Edge') : t('install.desktopStep2Chrome') }}</span></li>
+      </ol>
+      <p class="text-xs text-stone-500">{{ t('install.desktopNotOffered') }}</p>
     </template>
   </div>
 </template>

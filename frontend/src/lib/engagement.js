@@ -23,6 +23,9 @@ function detectPlatform() {
     android: /Android/i.test(ua),
     windows: /Windows/i.test(ua),
     macSafari: !ios && /Macintosh/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua),
+    // Chrome/Edge/Brave/Opera on Windows, macOS, Linux, ChromeOS
+    desktopChromium: !ios && !/Android/i.test(ua) && /Chrome\/|Chromium\/|Edg\//.test(ua),
+    edge: /Edg\//.test(ua),
     firefox: /Firefox|FxiOS/i.test(ua),
     standalone,
   }
@@ -51,7 +54,7 @@ export function initInstallCapture() {
   })
 }
 
-/** Which kind of install help fits this device: 'prompt' | 'ios' | 'ios-inapp' | 'android-menu' | 'mac-safari' | null */
+/** Which kind of install help fits this device: 'prompt' | 'ios' | 'ios-inapp' | 'android-menu' | 'mac-safari' | 'desktop-chromium' | null */
 export function installMethod() {
   if (install.installed) return null
   if (install.promptEvent) return 'prompt'
@@ -59,6 +62,9 @@ export function installMethod() {
   if (platform.ios) return 'ios'
   if (platform.android) return 'android-menu'
   if (platform.macSafari) return 'mac-safari'
+  // Chrome/Edge without install event: already installed, or the site is not (yet)
+  // installable. Show the menu path instead of claiming the browser cannot install.
+  if (platform.desktopChromium) return 'desktop-chromium'
   return null // e.g. Firefox on desktop: no PWA installation
 }
 
