@@ -11,21 +11,18 @@ import PushPanel from '../components/PushPanel.vue'
 import EnrichButton from '../components/EnrichButton.vue'
 import UserAdmin from '../components/UserAdmin.vue'
 import CronInfo from '../components/CronInfo.vue'
+import InstallGuide from '../components/InstallGuide.vue'
+import { install, installMethod, promptInstall } from '../lib/engagement.js'
 
 const router = useRouter()
 const route = useRoute()
 const profile = reactive({ email: store.user?.email ?? '', locale: store.user?.locale ?? locale.value, current_password: '', new_password: '' })
 const errors = ref({})
-const installPrompt = ref(null)
 
 onMounted(async () => {
   if (route.hash) nextTick(() => document.querySelector(route.hash)?.scrollIntoView({ behavior: 'smooth' }))
 })
 
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault()
-  installPrompt.value = e
-})
 
 async function saveProfile() {
   errors.value = {}
@@ -56,7 +53,7 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
 
     <section class="card space-y-3">
       <h2 class="flex items-center gap-2 font-semibold"><User class="h-5 w-5 text-brand-600" />{{ t('settings.profile') }} · {{ store.user?.username }} <span class="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-normal dark:bg-stone-800">{{ t(`users.role_${store.user?.role}`) }}</span></h2>
-      <form class="grid gap-3 sm:grid-cols-2" @submit.prevent="saveProfile">
+      <form class="grid grid-cols-1 gap-3 sm:grid-cols-2" @submit.prevent="saveProfile">
         <div>
           <label class="label" for="email">{{ t('auth.email') }}</label>
           <input id="email" v-model="profile.email" type="email" class="input" autocomplete="email" />
@@ -96,7 +93,18 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
       <a :href="exportUrl" class="btn-secondary" download>{{ t('settings.export') }}</a>
     </section>
 
-    <section class="card space-y-2">
+    <section id="install" class="card scroll-mt-20 space-y-3">
+      <h2 class="flex items-center gap-2 font-semibold"><Smartphone class="h-5 w-5 text-brand-600" />{{ t('settings.installApp') }}</h2>
+      <p v-if="install.installed" class="text-sm text-emerald-700 dark:text-emerald-400">{{ t('install.alreadyInstalled') }}</p>
+      <template v-else-if="installMethod() === 'prompt'">
+        <p class="text-sm text-stone-600 dark:text-stone-400">{{ t('engage.installText') }}</p>
+        <button class="btn-primary" @click="promptInstall"><Smartphone class="h-4 w-4" />{{ t('engage.install') }}</button>
+      </template>
+      <InstallGuide v-else-if="installMethod()" />
+      <p v-else class="text-sm text-stone-600 dark:text-stone-400">{{ t('install.unsupported') }}</p>
+    </section>
+
+    <section id="push" class="card scroll-mt-20 space-y-2">
       <h2 class="flex items-center gap-2 font-semibold"><Bell class="h-5 w-5 text-brand-600" />{{ t('settings.pushTitle') }}</h2>
       <PushPanel />
     </section>
@@ -116,7 +124,6 @@ const exportUrl = new URL('api/export.php', document.baseURI).href
       <h2 class="flex items-center gap-2 font-semibold"><Info class="h-5 w-5 text-brand-600" />{{ t('settings.about') }}</h2>
       <p>{{ store.appName || appName }} · {{ t('settings.version', { v: store.version }) }} · <a href="https://github.com/tobilektri/BookSpot" class="text-brand-700 underline" target="_blank" rel="noopener">{{ t('settings.sourceCode') }}</a></p>
       <div class="flex flex-wrap gap-2">
-        <button v-if="installPrompt" class="btn-secondary" @click="installPrompt.prompt()"><Smartphone class="h-4 w-4" />{{ t('settings.installApp') }}</button>
         <button class="btn-secondary text-red-600" @click="doLogout"><LogOut class="h-4 w-4" />{{ t('auth.logout') }}</button>
       </div>
     </section>

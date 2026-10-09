@@ -38,7 +38,7 @@ const unplaced = computed(() => books.value.filter((b) => b.entry_type === 'owne
       <span class="rounded-full bg-brand-100 px-2 py-0.5 font-semibold text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ unplaced }}</span>
     </RouterLink>
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
       <RouterLink v-for="shelf in shelves" :key="shelf.id" :to="`/shelves/${shelf.id}`" class="card block transition hover:shadow-md">
         <div class="mb-3 flex items-start justify-between gap-2">
           <div class="min-w-0">

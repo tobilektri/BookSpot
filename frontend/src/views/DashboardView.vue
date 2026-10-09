@@ -103,7 +103,7 @@ async function saveProgress(book) {
         </RouterLink>
       </section>
 
-      <div class="grid gap-6 lg:grid-cols-2">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section class="card">
           <h2 class="section-title flex items-center gap-2"><CalendarClock class="h-5 w-5 text-brand-600" />{{ t('dashboard.dueTitle') }}</h2>
           <p v-if="!loans.length" class="text-sm text-stone-500">{{ t('dashboard.dueEmpty') }}</p>

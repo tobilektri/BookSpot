@@ -147,11 +147,11 @@ const maxAuthor = computed(() => Math.max(1, ...(stats.value?.top_authors ?? [])
         </div>
       </section>
 
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <section class="card">
           <h2 class="section-title">{{ t('stats.statusChart') }}</h2>
-          <div class="flex items-center gap-4">
-            <div class="relative h-40 w-40 shrink-0">
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="relative h-32 w-32 shrink-0 sm:h-40 sm:w-40">
               <ChartCanvas :config="donutConfig" :label="t('stats.statusChart')" />
               <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <span class="text-2xl font-semibold">{{ formatNumber(statusTotal) }}</span>
@@ -161,7 +161,7 @@ const maxAuthor = computed(() => Math.max(1, ...(stats.value?.top_authors ?? [])
             <ul class="space-y-2 text-sm">
               <li v-for="row in statusRows" :key="row.key" class="flex items-center gap-2">
                 <span class="h-3 w-3 shrink-0 rounded-sm" :style="{ background: row.color }"></span>
-                <span class="min-w-20">{{ t(`status.${row.key}`) }}</span>
+                <span class="min-w-18">{{ t(`status.${row.key}`) }}</span>
                 <span class="font-semibold tabular-nums">{{ formatNumber(row.value) }}</span>
                 <span class="whitespace-nowrap text-stone-500 tabular-nums">({{ row.percent }} %)</span>
               </li>
@@ -197,7 +197,7 @@ const maxAuthor = computed(() => Math.max(1, ...(stats.value?.top_authors ?? [])
         </table>
       </section>
 
-      <div class="grid gap-6 lg:grid-cols-2">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section class="card">
           <h2 class="section-title">{{ t('stats.perYear') }} · {{ metricName }}</h2>
           <div v-if="stats.years.length" class="h-56"><ChartCanvas :config="yearConfig" :label="t('stats.perYear')" /></div>

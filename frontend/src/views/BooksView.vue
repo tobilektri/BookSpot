@@ -181,7 +181,7 @@ async function moveSelection() {
     <p v-if="error" class="card text-sm text-red-700">{{ error }}</p>
     <p v-else-if="!filtered.length && !loading" class="card text-center text-sm text-stone-500">{{ t('books.empty') }}</p>
 
-    <ul class="grid gap-1 md:grid-cols-2">
+    <ul class="grid grid-cols-1 gap-1 md:grid-cols-2">
       <li v-for="book in filtered.slice(0, visible)" :key="book.id" class="flex items-center" @click.capture="selecting && onSelectClick($event, book.id)">
         <button v-if="selecting" class="p-2 text-brand-700" :aria-pressed="selected.has(book.id)">
           <component :is="selected.has(book.id) ? CheckSquare : Square" class="h-5 w-5" />

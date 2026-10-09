@@ -6,6 +6,7 @@ import { store } from './lib/store.js'
 import { t, appName } from './lib/i18n.js'
 import logoUrl from './assets/logo.svg'
 import ToastStack from './components/ToastStack.vue'
+import EngagementPrompts from './components/EngagementPrompts.vue'
 
 const route = useRoute()
 const showChrome = computed(() => store.user && route.name !== 'login')
@@ -97,6 +98,7 @@ function applyUpdate() {
       <button class="btn-primary !py-1.5" @click="applyUpdate">{{ t('common.reload') }}</button>
     </div>
 
+    <EngagementPrompts v-if="showChrome && !store.updateAvailable" />
     <ToastStack />
   </div>
 </template>

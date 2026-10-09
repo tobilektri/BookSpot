@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, BookMarked, Library, Users } from '@lucide/vue'
 import { api, ApiError } from '../lib/api.js'
 import { t, errorMessage, fieldError } from '../lib/i18n.js'
-import { toast } from '../lib/store.js'
+import { toast, store } from '../lib/store.js'
 import { patchBook, books as catalog } from '../lib/catalog.js'
 import { normalizeIsbn } from '../lib/isbn.js'
 import { todayIso } from '../lib/format.js'
@@ -129,6 +129,8 @@ async function submit() {
     invalidateShelves()
     toast(isEdit.value ? t('common.saved') : t('book.created'), 'success')
     router.replace(`/books/${result.book.id}`)
+    // A loan with a due date is the moment where reminders make most sense.
+    if (result.book.entry_type !== 'owned' && result.book.loan_due) store.pushOffer = 'loan'
   } catch (e) {
     if (e instanceof ApiError) {
       errors.value = e.fields
@@ -215,7 +217,7 @@ const types = computed(() => [
 
       <section class="card space-y-3">
         <h2 class="font-semibold">{{ t('book.type') }}</h2>
-        <div class="grid gap-2 sm:grid-cols-3">
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <label
             v-for="type in types"
             :key="type.value"

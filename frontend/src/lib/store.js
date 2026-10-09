@@ -14,6 +14,7 @@ export const store = reactive({
   syncing: false,
   toasts: [],
   updateAvailable: false,
+  pushOffer: null, // set to a reason (e.g. 'loan') to offer push notifications right away
 })
 
 let toastId = 0

@@ -4,8 +4,11 @@ import { router } from './router.js'
 import { store } from './lib/store.js'
 import { setLocale, locale } from './lib/i18n.js'
 import { initSync } from './lib/sync.js'
+import { initInstallCapture } from './lib/engagement.js'
 import './style.css'
 
+// beforeinstallprompt fires once shortly after load – capture it before anything else.
+initInstallCapture()
 setLocale(locale.value)
 
 const app = createApp(App)
