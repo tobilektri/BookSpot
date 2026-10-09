@@ -9,7 +9,7 @@ namespace BookSpot;
  */
 final class App
 {
-    public const VERSION = '1.6.0';
+    public const VERSION = '1.6.1';
 
     private static ?Database $db = null;
     private static ?string $fixedNow = null;

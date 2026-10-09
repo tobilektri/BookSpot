@@ -1,12 +1,13 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Sparkles, ScanBarcode, BookOpen, LibraryBig, CalendarClock, Smartphone, Upload, GripVertical, Users, Clock, PartyPopper, X, ChevronLeft, ChevronRight, BellRing, Check,
+  Sparkles, ScanBarcode, BookOpen, LibraryBig, Library, CalendarClock, Smartphone, Upload, GripVertical, Users, Clock, PartyPopper, X, ChevronLeft, ChevronRight, BellRing, Check,
 } from '@lucide/vue'
 import { api } from '../lib/api.js'
 import { store, toast } from '../lib/store.js'
-import { t, appName, errorMessage } from '../lib/i18n.js'
+import { t, appName, errorMessage, fieldError } from '../lib/i18n.js'
+import { rememberUser } from '../lib/session.js'
 import { pushState, refreshPushState, pushOfferable, enablePush, pushNeedsInstall } from '../lib/push.js'
 import { installMethod, promptInstall, install, resetNudge } from '../lib/engagement.js'
 import InstallGuide from './InstallGuide.vue'
@@ -32,6 +33,7 @@ watch(visible, (v) => {
     index.value = 0
     showGuide.value = false
     refreshPushState()
+    resetLibrary()
   }
 })
 
@@ -41,6 +43,7 @@ const steps = computed(() => {
     { key: 'find', icon: ScanBarcode },
     { key: 'reading', icon: BookOpen },
     { key: 'shelves', icon: LibraryBig },
+    { key: 'library', icon: Library, action: 'library' },
     { key: 'loans', icon: CalendarClock, action: 'push' },
     { key: 'install', icon: Smartphone, action: 'install' },
   ]
@@ -71,7 +74,8 @@ async function finish(goTo = null) {
   if (goTo) router.push(goTo)
 }
 
-function next() {
+async function next() {
+  if (step.value.action === 'library' && !(await saveLibrary())) return
   if (isLast.value) finish()
   else index.value++
 }
@@ -89,6 +93,32 @@ async function doEnablePush() {
     toast(t('settings.pushEnabled'), 'success')
   } catch (e) {
     if (e.code !== 'denied') toast(errorMessage(e), 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+// Library defaults (same as Settings → My library), saved when moving on.
+const library = reactive({ library_name: '', library_loan_days: '' })
+const libraryError = ref('')
+function resetLibrary() {
+  library.library_name = store.user?.library_name ?? ''
+  library.library_loan_days = store.user?.library_loan_days ?? ''
+  libraryError.value = ''
+}
+async function saveLibrary() {
+  const unchanged =
+    library.library_name.trim() === (store.user?.library_name ?? '') && String(library.library_loan_days) === String(store.user?.library_loan_days ?? '')
+  if (unchanged) return true
+  busy.value = true
+  libraryError.value = ''
+  try {
+    const { user } = await api('auth.php', { method: 'POST', query: { action: 'profile' }, body: { ...library } })
+    rememberUser(user)
+    return true
+  } catch (e) {
+    libraryError.value = e.fields?.library_loan_days ? fieldError(e.fields.library_loan_days) : errorMessage(e)
+    return false
   } finally {
     busy.value = false
   }
@@ -156,6 +186,21 @@ async function doInstall() {
             <button v-else-if="canEnablePush" class="btn-primary" :disabled="busy" @click="doEnablePush"><BellRing class="h-4 w-4" />{{ t('pushOffer.enable') }}</button>
             <p v-else class="text-stone-500">{{ t('onboarding.loans.pushLater') }}</p>
           </div>
+          <div v-if="step.action === 'library'" class="mt-4 grid grid-cols-1 gap-3 rounded-xl bg-stone-100 p-3 text-sm sm:grid-cols-2 dark:bg-stone-800">
+            <div>
+              <label class="label" for="ob_library_name">{{ t('settings.libraryName') }}</label>
+              <input id="ob_library_name" v-model="library.library_name" class="input" maxlength="150" placeholder="Stadtbibliothek" />
+            </div>
+            <div>
+              <label class="label" for="ob_library_loan_days">{{ t('settings.loanDays') }}</label>
+              <div class="flex items-center gap-2">
+                <input id="ob_library_loan_days" v-model="library.library_loan_days" type="number" min="1" max="365" inputmode="numeric" class="input" placeholder="28" @keydown.enter.prevent="next" />
+                <span class="text-stone-500">{{ t('settings.days') }}</span>
+              </div>
+            </div>
+            <p v-if="libraryError" class="field-error sm:col-span-2">{{ libraryError }}</p>
+            <p v-else class="text-stone-500 sm:col-span-2">{{ t('onboarding.library.skipHint') }}</p>
+          </div>
           <div v-if="step.action === 'install'" class="mt-4 rounded-xl bg-stone-100 p-3 text-sm dark:bg-stone-800">
             <p v-if="install.installed" class="flex items-center gap-2 text-emerald-700 dark:text-emerald-400"><Check class="h-4 w-4" />{{ t('install.alreadyInstalled') }}</p>
             <template v-else-if="method">
@@ -179,7 +224,7 @@ async function doInstall() {
         <div class="flex items-center justify-between gap-2 border-t border-stone-100 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-stone-800">
           <button v-if="index > 0" class="btn-ghost" @click="index--"><ChevronLeft class="h-4 w-4" />{{ t('common.back') }}</button>
           <button v-else class="btn-ghost text-stone-500" @click="finish()">{{ t('onboarding.skip') }}</button>
-          <button class="btn-primary" @click="next">
+          <button class="btn-primary" :disabled="busy" @click="next">
             {{ isLast ? t('onboarding.finish') : index === 0 ? t('onboarding.start') : t('onboarding.next') }}
             <ChevronRight v-if="!isLast" class="h-4 w-4" />
           </button>

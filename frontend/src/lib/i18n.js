@@ -212,9 +212,15 @@ const de = {
       title: 'Regale & Standorte', text: 'Jedes eigene Buch hat einen Platz: Regal › Fach.',
       p1: 'Unter „Regale“ siehst du jedes Regal mit seinen Fächern und Buchrücken.', p2: 'Bücher lassen sich per Drag & Drop in ein anderes Fach ziehen oder über „Verschieben nach …“ umstellen.', p3: 'Der Filter „Ohne Standort“ zeigt Bücher, die noch einen Platz brauchen.',
     },
+    library: {
+      title: 'Deine Bibliothek', text: 'Leihst du Bücher in einer Bücherei aus? Dann trag hier Name und Leihfrist ein – das spart später Tipparbeit.',
+      p1: 'Bei neuen Ausleihen ist die Bibliothek schon ausgefüllt.', p2: 'Du trägst nur das Ausleihdatum ein, die Rückgabe wird berechnet (Ausleihdatum + Leihfrist).',
+      p3: 'Beim Verlängern verschiebt sich die Frist um die Leihfrist.',
+      skipHint: 'Kein Büchereiausweis? Einfach leer lassen. Ändern kannst du das jederzeit unter Einstellungen → Meine Bibliothek.',
+    },
     loans: {
       title: 'Ausleihen & Erinnerungen', text: 'Bücher aus der Bücherei oder von Freunden mit Rückgabedatum.',
-      p1: 'Beim Anlegen „Bibliotheks-Ausleihe“ wählen und das Rückgabedatum eintragen.', p2: 'Die Startseite zeigt anstehende Rückgaben, knappe Fristen sind markiert.', p3: 'Mit Push erinnert dich {app} 3 Tage und 1 Tag vorher sowie am Fälligkeitstag.',
+      p1: 'Beim Anlegen „Bibliotheks-Ausleihe“ wählen – das Rückgabedatum wird aus deiner Leihfrist berechnet.', p2: 'Die Startseite zeigt anstehende Rückgaben, knappe Fristen sind markiert.', p3: 'Mit Push erinnert dich {app} 3 Tage und 1 Tag vorher sowie am Fälligkeitstag.',
       pushLater: 'Erinnerungen kannst du später in den Einstellungen aktivieren.',
     },
     install: {
@@ -493,9 +499,15 @@ const en = {
       title: 'Shelves & locations', text: 'Every own book has a place: shelf › compartment.',
       p1: 'Under “Shelves” you see every shelf with its compartments and book spines.', p2: 'Drag books into another compartment or use “Move to …”.', p3: 'The “No location” filter shows books that still need a place.',
     },
+    library: {
+      title: 'Your library', text: 'Do you borrow books from a library? Enter its name and loan period here – it saves typing later.',
+      p1: 'New loans have the library filled in already.', p2: 'You only enter the borrowing date, the due date is calculated (borrowing date + loan period).',
+      p3: 'Extending moves the due date by the loan period.',
+      skipHint: 'No library card? Just leave it empty. You can change it any time under Settings → My library.',
+    },
     loans: {
       title: 'Loans & reminders', text: 'Books from the library or friends with a due date.',
-      p1: 'Choose “Library loan” when adding and enter the due date.', p2: 'The home page lists upcoming returns, tight deadlines are highlighted.', p3: 'With push {app} reminds you 3 days and 1 day before and on the due date.',
+      p1: 'Choose “Library loan” when adding – the due date is calculated from your loan period.', p2: 'The home page lists upcoming returns, tight deadlines are highlighted.', p3: 'With push {app} reminds you 3 days and 1 day before and on the due date.',
       pushLater: 'You can enable reminders later in the settings.',
     },
     install: {
