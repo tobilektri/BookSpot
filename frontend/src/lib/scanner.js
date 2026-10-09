@@ -1,17 +1,58 @@
 import { normalizeIsbn } from './isbn.js'
 
+const CAMERA_KEY = 'bookspot.camera'
+
+/** All cameras of the device. Labels are only available after camera permission was granted. */
+export async function listCameras() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    return devices.filter((d) => d.kind === 'videoinput' && d.deviceId)
+  } catch {
+    return []
+  }
+}
+
+export function rememberedCamera() {
+  try {
+    return localStorage.getItem(CAMERA_KEY)
+  } catch {
+    return null
+  }
+}
+
+function rememberCamera(deviceId) {
+  try {
+    localStorage.setItem(CAMERA_KEY, deviceId)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function openStream(deviceId) {
+  const size = { width: { ideal: 1280 }, height: { ideal: 720 } }
+  if (deviceId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: deviceId }, ...size } })
+    } catch (e) {
+      // Remembered camera no longer exists (other device, unplugged): fall back to the rear camera.
+      if (!['OverconstrainedError', 'NotFoundError'].includes(e?.name)) throw e
+    }
+  }
+  return navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, ...size } })
+}
+
 /**
  * Camera barcode scanner. Uses the native BarcodeDetector API where available
  * (Chrome/Android, Safari 17+) and falls back to ZXing (lazy-loaded) elsewhere.
  * Only valid ISBN-13/EAN codes starting with 978/979 are reported.
+ *
+ * options.deviceId selects a camera; without it the last used camera (or the
+ * rear camera) is opened. The chosen camera is remembered on this device.
  */
-export async function startScanner(video, onIsbn) {
+export async function startScanner(video, onIsbn, { deviceId = rememberedCamera() } = {}) {
   if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('no camera'), { code: 'no_camera' })
 
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-  })
+  const stream = await openStream(deviceId)
   video.srcObject = stream
   video.setAttribute('playsinline', 'true')
   video.muted = true
@@ -68,9 +109,12 @@ export async function startScanner(video, onIsbn) {
 
   const capabilities = track?.getCapabilities?.() ?? {}
   let torchOn = false
+  const activeDeviceId = track?.getSettings?.().deviceId ?? deviceId ?? null
+  if (activeDeviceId) rememberCamera(activeDeviceId)
 
   return {
     engine,
+    deviceId: activeDeviceId,
     hasTorch: Boolean(capabilities.torch),
     async toggleTorch() {
       torchOn = !torchOn

@@ -1,12 +1,12 @@
 <script setup>
-import { ref, onUnmounted, onMounted } from 'vue'
+import { ref, computed, onUnmounted, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Camera, CameraOff, Flashlight, Keyboard, Search } from '@lucide/vue'
+import { Camera, CameraOff, Flashlight, Keyboard, Search, SwitchCamera } from '@lucide/vue'
 import { api } from '../lib/api.js'
 import { t, errorMessage } from '../lib/i18n.js'
 import { books as catalog, loadCatalog } from '../lib/catalog.js'
 import { normalizeIsbn } from '../lib/isbn.js'
-import { startScanner } from '../lib/scanner.js'
+import { startScanner, listCameras } from '../lib/scanner.js'
 
 const router = useRouter()
 const video = ref(null)
@@ -17,6 +17,8 @@ const status = ref('')
 const manual = ref('')
 const manualError = ref('')
 const torch = ref(false)
+const cameras = ref([])
+const switching = ref(false)
 const secure = window.isSecureContext
 
 onMounted(() => {
@@ -25,11 +27,13 @@ onMounted(() => {
 })
 onUnmounted(stop)
 
-async function start() {
+async function start(deviceId) {
   cameraError.value = ''
   starting.value = true
   try {
-    scanner.value = await startScanner(video.value, handleIsbn)
+    scanner.value = await startScanner(video.value, handleIsbn, deviceId ? { deviceId } : undefined)
+    // Device names are only readable once the camera permission was granted.
+    cameras.value = await listCameras()
   } catch (e) {
     console.warn(e)
     cameraError.value = t('scan.noCamera')
@@ -37,6 +41,28 @@ async function start() {
     starting.value = false
   }
 }
+
+/** Next camera in the list (button) or a specific one (select). */
+async function switchCamera(deviceId = null) {
+  if (switching.value || cameras.value.length < 2) return
+  const ids = cameras.value.map((c) => c.deviceId)
+  const current = ids.indexOf(scanner.value?.deviceId)
+  const target = deviceId ?? ids[(current + 1) % ids.length]
+  if (target === scanner.value?.deviceId) return
+  switching.value = true
+  stop()
+  await start(target)
+  switching.value = false
+}
+
+function cameraLabel(camera, index) {
+  return camera.label || t('scan.cameraN', { n: index + 1 })
+}
+
+const currentCameraLabel = computed(() => {
+  const index = Math.max(0, cameras.value.findIndex((c) => c.deviceId === scanner.value?.deviceId))
+  return cameras.value[index] ? cameraLabel(cameras.value[index], index) : ''
+})
 
 function stop() {
   scanner.value?.stop()
@@ -97,6 +123,16 @@ function submitManual() {
       <div v-if="scanner" class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 p-3 text-xs text-white">
         <span>{{ status || t('scan.hint') }}</span>
         <div class="flex gap-2">
+          <button
+            v-if="cameras.length > 1"
+            class="rounded-full bg-white/20 p-2"
+            :disabled="switching"
+            :aria-label="t('scan.switchCamera')"
+            :title="t('scan.switchCamera')"
+            @click="switchCamera()"
+          >
+            <SwitchCamera class="h-4 w-4" :class="{ 'animate-spin': switching }" />
+          </button>
           <button v-if="scanner.hasTorch" class="rounded-full bg-white/20 p-2" :class="{ 'bg-amber-400 text-black': torch }" :aria-label="t('scan.torch')" @click="toggleTorch">
             <Flashlight class="h-4 w-4" />
           </button>
@@ -104,7 +140,19 @@ function submitManual() {
         </div>
       </div>
     </div>
-    <p v-if="scanner" class="text-center text-xs text-stone-500">{{ t('scan.engine', { name: scanner.engine }) }}</p>
+    <div v-if="scanner" class="flex flex-wrap items-center justify-center gap-2 text-xs text-stone-500">
+      <select
+        v-if="cameras.length > 2"
+        :value="scanner.deviceId"
+        class="input !w-auto !py-1 !text-xs"
+        :aria-label="t('scan.chooseCamera')"
+        @change="switchCamera($event.target.value)"
+      >
+        <option v-for="(camera, i) in cameras" :key="camera.deviceId" :value="camera.deviceId">{{ cameraLabel(camera, i) }}</option>
+      </select>
+      <span v-else-if="cameras.length > 1">{{ currentCameraLabel }}</span>
+      <span>{{ t('scan.engine', { name: scanner.engine }) }}</span>
+    </div>
 
     <form class="card space-y-2" @submit.prevent="submitManual">
       <label class="label flex items-center gap-2" for="manual_isbn"><Keyboard class="h-4 w-4" />{{ t('scan.manual') }}</label>

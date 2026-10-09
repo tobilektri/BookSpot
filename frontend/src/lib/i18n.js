@@ -62,6 +62,7 @@ const de = {
     noCamera: 'Keine Kamera verfügbar oder Zugriff verweigert. Du kannst die ISBN auch eintippen.', torch: 'Licht',
     searching: 'Suche {isbn} …', found: 'Im Katalog gefunden', notFound: 'Nicht im Katalog – neues Buch anlegen', invalid: 'Keine gültige ISBN',
     insecure: 'Die Kamera funktioniert nur über HTTPS (oder localhost).', engine: 'Scanner: {name}',
+    switchCamera: 'Kamera wechseln', chooseCamera: 'Kamera auswählen', cameraN: 'Kamera {n}',
   },
   shelves: {
     title: 'Regale', new: 'Neues Regal', empty: 'Noch keine Regale. Lege dein erstes Regal an – oder lass es beim CSV-Import automatisch erstellen.',
@@ -331,6 +332,7 @@ const en = {
     noCamera: 'No camera available or access denied. You can type the ISBN instead.', torch: 'Light',
     searching: 'Searching {isbn} …', found: 'Found in catalogue', notFound: 'Not in catalogue – add new book', invalid: 'Not a valid ISBN',
     insecure: 'The camera only works over HTTPS (or localhost).', engine: 'Scanner: {name}',
+    switchCamera: 'Switch camera', chooseCamera: 'Choose camera', cameraN: 'Camera {n}',
   },
   shelves: {
     title: 'Shelves', new: 'New shelf', empty: 'No shelves yet. Create your first one – or let the CSV import create it automatically.',
