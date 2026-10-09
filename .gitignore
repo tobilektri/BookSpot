@@ -1,0 +1,24 @@
+# Dependencies
+/vendor/
+/frontend/node_modules/
+
+# Local configuration & runtime data
+.env
+/var/*
+!/var/.htaccess
+!/var/.gitkeep
+
+# Frontend build output (built by `npm run build` / CI release)
+/public/index.html
+/public/assets/
+/public/sw.js
+/public/sw.js.map
+/public/manifest.webmanifest
+/public/icons/
+/public/favicon.svg
+/public/robots.txt
+
+# Tooling
+.phpunit.result.cache
+.DS_Store
+*.log

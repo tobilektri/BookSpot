@@ -1,0 +1,33 @@
+{
+    "name": "bookspot/bookspot",
+    "description": "BookSpot / SchmökerSpot – self-hosted book inventory, shelf organiser, library loan tracker and reading statistics PWA.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "minishlink/web-push": "^10.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
+    "suggest": {
+        "ext-gmp": "Faster Web Push payload encryption",
+        "ext-curl": "Faster metadata lookups (Open Library / Google Books)"
+    },
+    "autoload": {
+        "psr-4": { "BookSpot\\": "backend/src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "BookSpot\\Tests\\": "tests/" }
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}
