@@ -63,10 +63,10 @@ See [metadata.md](metadata.md#rate-limits) for how they work.
 | Setting | Default | |
 |---|---|---|
 | `RATE_LIMIT_OPEN_LIBRARY` | `1` | Requests per second to the Open Library API. |
-| `RATE_LIMIT_DNB` | `2` | Requests per second to the German National Library. |
+| `RATE_LIMIT_DNB` | `1` | Requests per second to the German National Library. |
 | `RATE_LIMIT_GOOGLE_BOOKS` | `5` | Requests per second to Google Books. |
 | `RATE_LIMIT_OPEN_LIBRARY_COVERS` | `0.33` | Open Library covers by ISBN (Open Library allows 100 per 5 minutes and IP). |
-| `RATE_LIMIT_DNB_COVERS` | `2` | Requests per second to the DNB cover service. |
+| `RATE_LIMIT_DNB_COVERS` | `1` | Requests per second to the DNB cover service. |
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | `600` | API requests per minute and IP address (cover images don't count). `0` = off. |
 
 ## Push notifications

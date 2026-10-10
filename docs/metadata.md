@@ -23,7 +23,7 @@ the spelled-out form of numbers that is only there for sorting is dropped (“Di
 
 **Titles saved by versions before 1.7.3** are corrected once after the update: migration 010 marks
 every book that exists at that moment, and the cron job looks them up at the DNB again, 30 per run
-(about 2 requests per second). A title is only replaced if it is still exactly what the old version
+(1 request per second). A title is only replaced if it is still exactly what the old version
 made of the DNB record – titles from other sources or edited by hand stay as they are. When all books
 are done the marker is removed; books added later are never looked up for this. To do it in one go:
 `php backend/bin/repair-dnb-titles.php`.
@@ -69,10 +69,10 @@ no daemon or cache server needed):
 | Source | Default | Setting |
 |---|---|---|
 | Open Library API | 1 request/s | `RATE_LIMIT_OPEN_LIBRARY` |
-| German National Library | 2 requests/s | `RATE_LIMIT_DNB` |
+| German National Library | 1 request/s | `RATE_LIMIT_DNB` |
 | Google Books | 5 requests/s | `RATE_LIMIT_GOOGLE_BOOKS` |
 | Open Library covers by ISBN | 1 every 3 s (Open Library allows 100 per 5 minutes and IP) | `RATE_LIMIT_OPEN_LIBRARY_COVERS` |
-| DNB covers | 2 requests/s | `RATE_LIMIT_DNB_COVERS` |
+| DNB covers | 1 request/s | `RATE_LIMIT_DNB_COVERS` |
 
 - A request **waits** briefly for its slot (a few seconds at most); if the wait would be longer, the
   source is skipped for now and the next one is used.

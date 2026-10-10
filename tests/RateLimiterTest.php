@@ -44,7 +44,7 @@ final class RateLimiterTest extends TestCase
     public function testThrottleSpacesCallsAndRespectsMaxWait(): void
     {
         $limiter = $this->limiter();
-        // DNB: 2 per second -> 0.5 s apart
+        // A source allowing 2 per second -> 0.5 s apart
         self::assertTrue($limiter->throttle('dnb', 0.5, 5));
         self::assertTrue($limiter->throttle('dnb', 0.5, 5));
         self::assertTrue($limiter->throttle('dnb', 0.5, 5));

@@ -21,10 +21,10 @@ final class RateLimiter
     /** Default spacing between calls per provider in seconds (configurable in .env as requests per second). */
     private const PROVIDER_INTERVALS = [
         'open_library' => 1.0,          // RATE_LIMIT_OPEN_LIBRARY=1
-        'dnb' => 0.5,                   // RATE_LIMIT_DNB=2
+        'dnb' => 1.0,                   // RATE_LIMIT_DNB=1
         'google_books' => 0.2,          // RATE_LIMIT_GOOGLE_BOOKS=5
         'open_library_covers' => 3.0,   // covers by ISBN: Open Library allows 100 per 5 minutes and IP
-        'dnb_covers' => 0.5,            // RATE_LIMIT_DNB_COVERS=2
+        'dnb_covers' => 1.0,            // RATE_LIMIT_DNB_COVERS=1
     ];
     private const MAX_BLOCK_SECONDS = 3600;
     private const BASE_BLOCK_SECONDS = 60;
