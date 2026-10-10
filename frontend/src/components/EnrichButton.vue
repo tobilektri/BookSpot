@@ -14,7 +14,7 @@ let partial = 0
 
 onMounted(async () => {
   try {
-    remaining.value = (await api('books.php', { query: { action: 'enrich_status' } })).remaining
+    remaining.value = (await api('v1/books/enrich-status')).remaining
   } catch {
     remaining.value = 0
   }
@@ -27,7 +27,7 @@ async function run() {
   partial = 0
   try {
     while (running.value && remaining.value > 0) {
-      const result = await api('books.php', { method: 'POST', query: { action: 'enrich' }, body: { limit: 5 } })
+      const result = await api('v1/books/enrich', { method: 'POST', body: { limit: 5 } })
       updated += result.updated
       remaining.value = result.remaining
       if (result.unavailable) {

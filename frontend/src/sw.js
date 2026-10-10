@@ -25,8 +25,8 @@ registerRoute(
   ({ url, request }) =>
     request.method === 'GET' &&
     url.origin === self.location.origin &&
-    /\/api\/(books|shelves|stats|user_books|push|auth)\.php$/.test(url.pathname) &&
-    !url.searchParams.has('token'),
+    /\/api\/v1\/(books|shelves|stats|push|auth\/status|auth\/profile)(\/|$)/.test(url.pathname) &&
+    !/\/cover$|\/batch(\/|$)/.test(url.pathname),
   new NetworkFirst({
     cacheName: 'bookspot-api',
     networkTimeoutSeconds: 8,
@@ -38,13 +38,13 @@ registerRoute(
   }),
 )
 
-// Book covers are stored on our own server (api/cover.php) and cached here for offline use.
+// Book covers are stored on our own server (api/v1/books/{id}/cover) and cached here for offline use.
 // External images are deliberately not intercepted: a fetch() from the service worker is
 // subject to connect-src 'self' and would fail.
 registerRoute(
-  ({ url }) => url.origin === self.location.origin && url.pathname.endsWith('/api/cover.php'),
+  ({ url }) => url.origin === self.location.origin && /\/api\/v1\/books\/\d+\/cover$/.test(url.pathname),
   new CacheFirst({
-    cacheName: 'bookspot-covers-local',
+    cacheName: 'bookspot-covers-v1',
     plugins: [
       new CacheableResponsePlugin({ statuses: [200] }),
       new ExpirationPlugin({ maxEntries: 3000, maxAgeSeconds: 60 * 60 * 24 * 365, purgeOnQuotaError: true }),
@@ -52,8 +52,10 @@ registerRoute(
   }),
 )
 
-// Old cache of hotlinked covers (before covers were stored locally).
-self.addEventListener('activate', (event) => event.waitUntil(caches.delete('bookspot-covers')))
+// Old cover caches: hotlinked covers, then covers under the pre-v1 URL api/cover.php.
+self.addEventListener('activate', (event) =>
+  event.waitUntil(Promise.all(['bookspot-covers', 'bookspot-covers-local'].map((name) => caches.delete(name)))),
+)
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()

@@ -81,7 +81,7 @@ const genreOptions = computed(() => [...new Set(catalog.value.map((b) => b.genre
 onMounted(async () => {
   if (isEdit.value) {
     try {
-      const { book } = await api('books.php', { query: { id: props.id } })
+      const { book } = await api(`v1/books/${props.id}`)
       for (const key of Object.keys(form)) {
         if (key === 'isbn') form.isbn = book.isbn13 ?? book.isbn10 ?? ''
         else if (book[key] !== undefined && book[key] !== null) form[key] = book[key]
@@ -111,7 +111,7 @@ async function fetchMetadata() {
   errors.value = {}
   lookupState.value = 'loading'
   try {
-    const { found, metadata, unavailable } = await api('lookup.php', { query: { isbn } })
+    const { found, metadata, unavailable } = await api(`v1/lookup/${isbn}`)
     if (!found) {
       lookupState.value = unavailable ? 'unavailable' : 'none'
       return
@@ -154,8 +154,8 @@ async function submit() {
   duplicateId.value = null
   try {
     const result = isEdit.value
-      ? await api('books.php', { method: 'PUT', query: { id: props.id }, body: payload.value })
-      : await api('books.php', { method: 'POST', body: payload.value })
+      ? await api(`v1/books/${props.id}`, { method: 'PUT', body: payload.value })
+      : await api('v1/books', { method: 'POST', body: payload.value })
     patchBook(result.book)
     invalidateShelves()
     toast(isEdit.value ? t('common.saved') : t('book.created'), 'success')

@@ -20,7 +20,7 @@ export async function bootstrap() {
 
 /** Fetches the auth status (also used by the login page to detect a fresh/emptied database). */
 export async function refreshStatus() {
-  const status = await api('auth.php', { query: { action: 'status' } })
+  const status = await api('v1/auth/status')
   // The server no longer knows this session (logged out elsewhere, account deleted,
   // database emptied): drop locally cached data of the previous user.
   if (!status.user && lastKnownUser()) await clearLocalData()
@@ -62,7 +62,7 @@ export function rememberUser(user) {
 }
 
 export async function logout() {
-  await api('auth.php', { method: 'POST', query: { action: 'logout' } }).catch(() => {})
+  await api('v1/auth/logout', { method: 'POST' }).catch(() => {})
   rememberUser(null)
   await clearLocalData()
 }

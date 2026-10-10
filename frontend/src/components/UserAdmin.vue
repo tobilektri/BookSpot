@@ -19,7 +19,7 @@ const passwordFor = ref(null)
 const newPassword = ref('')
 
 async function load() {
-  users.value = (await api('users.php')).users
+  users.value = (await api('v1/users')).users
 }
 onMounted(() => load().catch((e) => toast(errorMessage(e), 'error')))
 
@@ -33,7 +33,7 @@ async function create() {
   busy.value = true
   errors.value = {}
   try {
-    const { user, invite } = await api('users.php', { method: 'POST', body: form })
+    const { user, invite } = await api('v1/users', { method: 'POST', body: form })
     showCreate.value = false
     if (invite) inviteResult.value = { user, invite }
     else toast(t('users.created', { name: user.username }), 'success')
@@ -52,7 +52,7 @@ async function changeRole(user, role) {
     return
   }
   try {
-    await api('users.php', { method: 'PUT', query: { id: user.id }, body: { role } })
+    await api(`v1/users/${user.id}`, { method: 'PUT', body: { role } })
     toast(t('common.saved'), 'success')
     if (user.id === store.user.id) store.user = { ...store.user, role }
   } catch (e) {
@@ -63,7 +63,7 @@ async function changeRole(user, role) {
 
 async function savePassword() {
   try {
-    await api('users.php', { method: 'PUT', query: { id: passwordFor.value.id }, body: { password: newPassword.value } })
+    await api(`v1/users/${passwordFor.value.id}`, { method: 'PUT', body: { password: newPassword.value } })
     toast(t('users.passwordSet', { name: passwordFor.value.username }), 'success')
     passwordFor.value = null
     newPassword.value = ''
@@ -75,7 +75,7 @@ async function savePassword() {
 /** (Re)sends the invitation link – also usable to let someone choose a new password. */
 async function invite(user) {
   try {
-    const { invite } = await api('users.php', { method: 'POST', query: { action: 'invite', id: user.id } })
+    const { invite } = await api(`v1/users/${user.id}/invite`, { method: 'POST' })
     inviteResult.value = { user, invite }
     await load()
   } catch (e) {
@@ -95,7 +95,7 @@ async function copyLink() {
 async function impersonate(user) {
   if (!confirm(t('impersonate.confirm', { name: user.username }))) return
   try {
-    await switchIdentity(() => api('users.php', { method: 'POST', query: { action: 'impersonate', id: user.id } }), '#/')
+    await switchIdentity(() => api(`v1/users/${user.id}/impersonate`, { method: 'POST' }), '#/')
   } catch (e) {
     toast(errorMessage(e), 'error')
   }
@@ -104,7 +104,7 @@ async function impersonate(user) {
 async function remove(user) {
   if (!confirm(t('users.deleteConfirm', { name: user.username }))) return
   try {
-    await api('users.php', { method: 'DELETE', query: { id: user.id } })
+    await api(`v1/users/${user.id}`, { method: 'DELETE' })
     toast(t('users.deleted', { name: user.username }), 'success')
     await load()
   } catch (e) {

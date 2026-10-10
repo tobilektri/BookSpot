@@ -38,7 +38,7 @@ onMounted(async () => {
     return
   }
   try {
-    const { shelf } = await api('shelves.php', { query: { id: props.id } })
+    const { shelf } = await api(`v1/shelves/${props.id}`)
     Object.assign(form, { name: shelf.name, room: shelf.room ?? '', description: shelf.description ?? '' })
     columns.value = shelf.columns.map((c, ci) =>
       makeColumn(c.label, c.rows.map((name, ri) => makeRow(name, { col: ci + 1, row: ri + 1 }, c.counts?.[ri] ?? 0))),
@@ -261,7 +261,7 @@ async function submit() {
         rows: c.rows.map((r) => ({ name: r.name, from_col: r.from?.col ?? null, from_row: r.from?.row ?? null })),
       })),
     }
-    const result = isEdit.value ? await api('shelves.php', { method: 'PUT', query: { id: props.id }, body }) : await api('shelves.php', { method: 'POST', body })
+    const result = isEdit.value ? await api(`v1/shelves/${props.id}`, { method: 'PUT', body }) : await api('v1/shelves', { method: 'POST', body })
     invalidateShelves()
     invalidateCatalog()
     if (result.shelf.unassigned_books) toast(t('shelves.unassigned', { n: result.shelf.unassigned_books }), 'info', 6000)
@@ -278,7 +278,7 @@ async function submit() {
 async function remove() {
   if (!confirm(t('shelves.deleteConfirm', { name: form.name }))) return
   try {
-    await api('shelves.php', { method: 'DELETE', query: { id: props.id } })
+    await api(`v1/shelves/${props.id}`, { method: 'DELETE' })
     invalidateShelves()
     invalidateCatalog()
     router.replace('/shelves')

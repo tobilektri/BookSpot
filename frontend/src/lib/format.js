@@ -40,13 +40,13 @@ export function coverUrl(book) {
   if (!book) return null
   if (book.id) {
     if (book.has_cover === false) return null // known: no cover anywhere -> placeholder without request
-    return new URL(`api/cover.php?id=${book.id}&v=${book.cover_version ?? ''}`, document.baseURI).href
+    return new URL(`api/v1/books/${book.id}/cover?v=${book.cover_version ?? ''}`, document.baseURI).href
   }
-  const params = new URLSearchParams({ preview: '1' })
+  const params = new URLSearchParams()
   if (book.cover_url) params.set('url', book.cover_url)
   else if (book.isbn13) params.set('isbn', book.isbn13)
   else return null
-  return new URL(`api/cover.php?${params}`, document.baseURI).href
+  return new URL(`api/v1/covers/preview?${params}`, document.baseURI).href
 }
 
 /** Stable pastel-ish colour for book spines / placeholders. */

@@ -35,7 +35,7 @@ export function loadCatalog({ force = false } = {}) {
       }
     }
     try {
-      const data = await api('books.php', { query: { limit: 10000, compact: 1, sort: 'title' } })
+      const data = await api('v1/books', { query: { limit: 10000, compact: 1, sort: 'title' } })
       books.value = data.items
       fromCache.value = !store.online // served by the service worker cache
       if (store.online) {

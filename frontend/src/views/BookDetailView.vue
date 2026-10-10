@@ -35,7 +35,7 @@ const extendDate = ref('')
 async function load() {
   error.value = ''
   try {
-    const data = await api('books.php', { query: { id: props.id } })
+    const data = await api(`v1/books/${props.id}`)
     book.value = data.book
     offlineCopy.value = !store.online
   } catch (e) {
@@ -94,7 +94,7 @@ const saveDetails = () =>
 
 async function updateBook(data, message = t('common.saved')) {
   try {
-    const result = await api('books.php', { method: 'PUT', query: { id: book.value.id }, body: data })
+    const result = await api(`v1/books/${book.value.id}`, { method: 'PUT', body: data })
     book.value = result.book
     patchBook(result.book)
     toast(message, 'success')
@@ -149,7 +149,7 @@ async function extend() {
 async function remove() {
   if (!confirm(t('book.deleteConfirm', { title: book.value.title }))) return
   try {
-    await api('books.php', { method: 'DELETE', query: { id: book.value.id } })
+    await api(`v1/books/${book.value.id}`, { method: 'DELETE' })
     removeBook(book.value.id)
     invalidateShelves()
     toast(t('book.deleted'), 'success')

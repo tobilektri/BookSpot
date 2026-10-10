@@ -11,13 +11,13 @@ const error = ref('')
 
 onMounted(async () => {
   try {
-    info.value = await api('admin.php')
+    info.value = await api('v1/admin/system')
   } catch (e) {
     error.value = errorMessage(e)
   }
 })
 
-const cronUrl = computed(() => (info.value ? new URL(`api/cron.php?token=${info.value.cron_token}`, document.baseURI).href : ''))
+const cronUrl = computed(() => (info.value ? new URL(`api/v1/cron?token=${info.value.cron_token}`, document.baseURI).href : ''))
 
 async function copy() {
   try {
@@ -31,7 +31,7 @@ async function copy() {
 async function regenerate() {
   if (!confirm(t('cron.regenerateConfirm'))) return
   try {
-    info.value = { ...info.value, ...(await api('admin.php', { method: 'POST', query: { action: 'regenerate_cron_token' } })) }
+    info.value = { ...info.value, ...(await api('v1/admin/cron-token', { method: 'POST' })) }
     toast(t('cron.regenerated'), 'success')
   } catch (e) {
     toast(errorMessage(e), 'error')

@@ -89,7 +89,7 @@ async function toggleTorch() {
 async function handleIsbn(isbn) {
   status.value = t('scan.searching', { isbn })
   try {
-    const result = await api('books.php', { query: { isbn } })
+    const result = await api(`v1/books/isbn/${isbn}`)
     stop()
     if (result.found) router.push(`/books/${result.book.id}`)
     else router.push({ name: 'book-new', query: { isbn } })

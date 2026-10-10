@@ -33,7 +33,7 @@ async function disable() {
 
 async function test() {
   try {
-    const result = await api('push.php', { method: 'POST', query: { action: 'test' } })
+    const result = await api('v1/push/test', { method: 'POST' })
     toast(t('settings.pushSent', { n: result.sent }), result.sent ? 'success' : 'error')
   } catch (e) {
     toast(errorMessage(e), 'error')

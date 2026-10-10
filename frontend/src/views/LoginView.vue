@@ -36,10 +36,9 @@ async function submit() {
   try {
     const result =
       mode.value === 'login'
-        ? await api('auth.php', { method: 'POST', query: { action: 'login' }, body: { login: form.login, password: form.password } })
-        : await api('auth.php', {
+        ? await api('v1/auth/login', { method: 'POST', body: { login: form.login, password: form.password } })
+        : await api('v1/auth/register', {
             method: 'POST',
-            query: { action: 'register' },
             body: { username: form.username, email: form.email, password: form.password, locale: locale.value },
           })
     rememberUser(result.user)

@@ -69,7 +69,7 @@ async function finish(goTo = null) {
   store.showOnboarding = false
   if (store.user && !store.user.onboarded_at) {
     store.user = { ...store.user, onboarded_at: new Date().toISOString() }
-    await api('auth.php', { method: 'POST', query: { action: 'onboarded' } }).catch(() => {})
+    await api('v1/auth/onboarded', { method: 'POST' }).catch(() => {})
   }
   if (goTo) router.push(goTo)
 }
@@ -113,7 +113,7 @@ async function saveLibrary() {
   busy.value = true
   libraryError.value = ''
   try {
-    const { user } = await api('auth.php', { method: 'POST', query: { action: 'profile' }, body: { ...library } })
+    const { user } = await api('v1/auth/profile', { method: 'PUT', body: { ...library } })
     rememberUser(user)
     return true
   } catch (e) {

@@ -15,7 +15,7 @@ const showTable = ref(false)
 async function load() {
   error.value = ''
   try {
-    stats.value = await api('stats.php', { query: { year: year.value } })
+    stats.value = await api('v1/stats', { query: { year: year.value } })
   } catch (e) {
     error.value = errorMessage(e)
   }

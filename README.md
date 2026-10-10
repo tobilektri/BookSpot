@@ -32,11 +32,11 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
   Monat und Jahr, Lesetempo, Top-Autor:innen, Bestandswert.
 - **Offline-fähig**: Service Worker (App-Shell cache-first, API network-first), Katalog in
   IndexedDB (Dexie). Statusänderungen und Verschiebungen offline werden in einer Warteschlange
-  gespeichert und bei Verbindung automatisch über `api/sync.php` übertragen (Konflikterkennung).
+  gespeichert und bei Verbindung automatisch über `api/v1/sync` übertragen (Konflikterkennung).
 - **Export** als Bookstats-kompatible CSV (re-importierbar).
 - **Cover werden lokal gespeichert:** Der Server lädt jedes Cover einmal herunter (Cover-URL des
   Buchs, sonst Open Library per ISBN), verkleinert es auf max. 600 px (GD) und legt es in
-  `var/covers/` ab; ausgeliefert wird über `api/cover.php` mit Browser-Cache. Kein Hotlinking
+  `var/covers/` ab; ausgeliefert wird über `api/v1/books/{id}/cover` mit Browser-Cache. Kein Hotlinking
   (CSP-konform, offline verfügbar, unabhängig von Rate-Limits). Der Cronjob lädt Cover vorab.
   **`var/covers/` gehört mit ins Backup.**
 - **Einführung (Wizard)** beim ersten Login – für Benutzer und (erweitert) für Admins, jederzeit
@@ -49,11 +49,13 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
 ```
 backend/            PHP 8.2+ (Vanilla PDO, kein Framework)
   src/              Services: Auth, BookService, ShelfService, Import/, StatsService, PushService …
+  src/Http/         Router, Middleware (Auth, CSRF, CORS, Rate-Limit, Fehler), Kernel = Routen
+  src/Controller/   API-Controller
   migrations/       Schema für MariaDB/MySQL und SQLite (werden automatisch angewendet)
   bin/              CLI: migrate.php, cron.php, create-user.php, vapid.php
 public/             Document Root
-  api/*.php         REST-Endpunkte (auth, books, shelves, user_books, import, export, stats,
-                    lookup, push, sync, cron)
+  api/index.php     Einstiegspunkt der API (/api/v1/…); die übrigen api/*.php sind
+                    Weiterleitungen für ältere App-Versionen und bestehende Cron-URLs
   (index.html, assets/, sw.js …)   ← von Vite gebautes Frontend
 frontend/           Vue 3 + Vite + Tailwind CSS 4 + Dexie + Chart.js (Quellcode)
 docker/             nginx- und PHP-Konfiguration
@@ -134,7 +136,7 @@ docker compose up -d --build
 # → http://localhost:8080
 ```
 
-Container: `web` (nginx, statisches Frontend + FastCGI nur für `api/*.php`), `app`
+Container: `web` (nginx, statisches Frontend + FastCGI nur für `api/*.php`, `/api/v1/…` → `api/index.php`), `app`
 (PHP 8.5-FPM mit OPcache, GMP), `db` (MariaDB 11.4, Healthcheck), `cron` (führt
 `backend/bin/cron.php` stündlich aus). Daten liegen in den Volumes `mariadb_data` und `app_var`.
 Für HTTPS einen Reverse Proxy (Traefik, Caddy, nginx) davorschalten.
@@ -174,23 +176,38 @@ Lesedaten zu übernehmen. Weitere zu ignorierende Genre-Werte: `IMPORT_GENRE_BLO
 
 ## API (Kurzüberblick)
 
-| Endpunkt | Beschreibung |
-|---|---|
-| `GET api/auth.php?action=status` · `POST …?action=login/register/logout/profile` | Sitzung |
-| `GET/POST/PUT/DELETE api/users.php[?id=]` | Benutzerverwaltung (Rollen `admin`/`user`; Ändern nur für Admins) |
-| `GET api/admin.php` · `POST …?action=regenerate_cron_token` | Admin: Cron-URL-Token, Systeminfo |
-| `GET api/books.php?isbn=…` | Katalog-Suche per ISBN (`{found, book}`) |
-| `GET/POST/PUT/DELETE api/books.php[?id=]` | Bücher; `?action=move`, `due`, `genres`, `enrich` |
-| `GET/PUT api/user_books.php?book_id=` | persönliche Lesedaten |
-| `GET/POST/PUT/DELETE api/shelves.php[?id=]` | Regale (`columns: [{label, rows: ["L1", …]}]` oder `[4, 2, 5]`) |
-| `POST api/import.php` · `GET api/export.php` | CSV-Import (multipart) / Export |
-| `GET api/lookup.php?isbn=` | Metadaten von Open Library, DNB und Google Books |
-| `GET api/stats.php?year=` | Statistik |
-| `POST api/sync.php` | Offline-Warteschlange abspielen |
-| `GET/POST api/push.php` | VAPID-Key, (De-)Abonnieren, Test |
-| `GET api/cron.php?token=` | Erinnerungen + Metadaten (Webcron, Token siehe Einstellungen) |
+Alle Aufrufe laufen über einen zentralen Einstiegspunkt (`public/api/index.php`, Routen-Tabelle
+in `backend/src/Http/Kernel.php`). `/api/v1/…` wird per `.htaccess` bzw. nginx dorthin
+umgeleitet; ohne URL-Rewriting funktioniert dieselbe Route als `api/index.php/v1/…`.
 
-Schreibende Requests brauchen `X-Requested-With: BookSpot` und eine gültige Session.
+| Route | Beschreibung |
+|---|---|
+| `GET /api/v1/auth/status` | Sitzung, App-Infos (öffentlich) |
+| `POST /api/v1/auth/login` · `register` · `logout` · `onboarded` · `impersonation/stop` | Anmeldung |
+| `GET/PUT /api/v1/auth/profile` | Profil, Sprache, Passwort, Bibliothek/Leihfrist |
+| `GET /api/v1/auth/invites/{token}` · `POST /api/v1/auth/invites/accept` | Einladungslink |
+| `GET/POST /api/v1/books` · `GET/PUT/DELETE /api/v1/books/{id}` | Bücher (Liste mit `q`, `sort`, `shelf_id` …) |
+| `GET /api/v1/books/isbn/{isbn}` | Katalog-Suche per ISBN (`{found, book}`) |
+| `GET /api/v1/books/due` · `genres` · `enrich-status` · `POST …/enrich` · `POST …/move` | Ausleihen, Genres, Metadaten, Verschieben |
+| `GET/PUT /api/v1/books/{id}/personal` | persönliche Lesedaten |
+| `GET /api/v1/books/{id}/cover` · `GET /api/v1/covers/preview?url=\|isbn=` | Cover (lokal gespeichert) / Vorschau |
+| `GET/POST /api/v1/shelves` · `GET/PUT/DELETE /api/v1/shelves/{id}` | Regale (`columns: [{label, rows: ["L1", …]}]` oder `[4, 2, 5]`) |
+| `GET/POST /api/v1/users` · `PUT/DELETE /api/v1/users/{id}` · `POST …/{id}/invite` · `…/{id}/impersonate` | Benutzerverwaltung (Ändern nur Admins) |
+| `GET /api/v1/admin/system` · `POST /api/v1/admin/cron-token` | Admin: Cron-Token, Systeminfo |
+| `POST /api/v1/import` · `GET /api/v1/export` | CSV-Import (multipart) / Export |
+| `GET /api/v1/lookup/{isbn}` | Metadaten von Open Library, DNB und Google Books |
+| `GET /api/v1/stats?year=` | Statistik |
+| `POST /api/v1/sync` | Offline-Warteschlange abspielen |
+| `GET /api/v1/push` · `POST/DELETE /api/v1/push/subscriptions` · `POST /api/v1/push/test` | Push |
+| `GET /api/v1/cron?token=` | Webcron (Token siehe Einstellungen) |
+
+- Schreibende Requests brauchen `X-Requested-With: BookSpot` (CSRF-Schutz) und eine gültige
+  Session. PUT/PATCH/DELETE dürfen per `POST` mit `X-HTTP-Method-Override` getunnelt werden.
+- Fehler kommen einheitlich als JSON `{"error": "<code>", …}`; bei zu vielen Anfragen `429` mit
+  `Retry-After` (pro IP `RATE_LIMIT_REQUESTS_PER_MINUTE`, dazu Limits für Login, Lookup, Import …).
+- CORS ist aus (nur gleiche Herkunft); andere Frontends lassen sich über `CORS_ALLOWED_ORIGINS` freigeben.
+- Die alten Endpunkte `api/books.php`, `api/cron.php?token=` … funktionieren weiter (gleiche
+  Controller); bestehende Cron-URLs müssen nicht geändert werden.
 
 ## Lizenz
 
