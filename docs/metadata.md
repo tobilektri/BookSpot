@@ -21,6 +21,13 @@ the spelled-out form of numbers that is only there for sorting is dropped (“Di
 “Die große 5”), volumes of multi-part works get their part title (“Die fünf Temponauten. Treffpunkt
 2321”) and abbreviated publishers are expanded where it is unambiguous (“Bergverl.” → “Bergverlag”).
 
+**Titles saved by versions before 1.7.3** are corrected once after the update: migration 010 marks
+every book that exists at that moment, and the cron job looks them up at the DNB again, 30 per run
+(about 2 requests per second). A title is only replaced if it is still exactly what the old version
+made of the DNB record – titles from other sources or edited by hand stay as they are. When all books
+are done the marker is removed; books added later are never looked up for this. To do it in one go:
+`php backend/bin/repair-dnb-titles.php`.
+
 Switches: `METADATA_LOOKUP=false` (no online lookups at all), `METADATA_DNB=false`, no
 `GOOGLE_BOOKS_API_KEY` = Google is skipped (it would only answer 429).
 

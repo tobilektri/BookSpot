@@ -143,12 +143,7 @@ final class MetadataService
      */
     private function dnb(string $isbn): ?array
     {
-        if (!Config::bool('METADATA_DNB', true) || !class_exists(\DOMDocument::class)) {
-            return null;
-        }
-        $url = 'https://services.dnb.de/sru/dnb?version=1.1&operation=searchRetrieve&maximumRecords=1&recordSchema=MARC21-xml&query='
-            . rawurlencode('num=' . $isbn);
-        $xml = $this->fetchText('dnb', $url, 'application/xml');
+        $xml = $this->dnbMarc($isbn);
         $record = $xml === null ? null : self::parseDnbRecord($xml);
         if ($record === null) {
             return null;
@@ -162,6 +157,21 @@ final class MetadataService
         }
         unset($record['blurb_url']);
         return $record;
+    }
+
+    /**
+     * Raw SRU response (MARC21-xml) of the DNB for an ISBN-13; null when the DNB is switched off.
+     *
+     * @throws MetadataUnavailable
+     */
+    public function dnbMarc(string $isbn13): ?string
+    {
+        if (!Config::bool('METADATA_LOOKUP', true) || !Config::bool('METADATA_DNB', true) || !class_exists(\DOMDocument::class)) {
+            return null;
+        }
+        $url = 'https://services.dnb.de/sru/dnb?version=1.1&operation=searchRetrieve&maximumRecords=1&recordSchema=MARC21-xml&query='
+            . rawurlencode('num=' . $isbn13);
+        return $this->fetchText('dnb', $url, 'application/xml');
     }
 
     /**

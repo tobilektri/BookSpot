@@ -25,7 +25,8 @@ backend/
     RateLimiter.php     request limits and throttling of external sources
     Import/             CsvReader, BookImporter
   migrations/{mysql,sqlite}/  numbered SQL files, applied automatically
-  bin/                  CLI: cron.php, create-user.php, demo-data.php, dev-router.php, migrate.php, vapid.php
+  bin/                  CLI: cron.php, create-user.php, demo-data.php, dev-router.php, migrate.php,
+                        repair-dnb-titles.php, vapid.php
 public/                 document root
   api/index.php         API front controller (+ deprecated api/*.php wrappers)
   index.html, assets/, sw.js, manifest.webmanifest   ← built frontend
