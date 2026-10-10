@@ -13,9 +13,15 @@ namespace BookSpot;
 final class MetadataService
 {
     private const TIMEOUT = 8;
-    /** Partial answers are retried this often before the available data counts as final. */
-    public const MAX_ATTEMPTS = 3;
-    private const RETRY_AFTER_HOURS = 6;
+    /**
+     * Partial answers (a source was down, e.g. Google Books with its frequent 503) are retried
+     * this often – at growing intervals – before the available data counts as final.
+     */
+    public const MAX_ATTEMPTS = 8;
+    /** Hours until the next try after attempt 1, 2, … (the last value repeats). */
+    private const RETRY_HOURS = [6, 12, 24, 48, 96, 168, 336];
+    /** Books that still have no cover are looked at again once a month. */
+    private const COVER_RECHECK_DAYS = 30;
 
     /** @var (callable(string): ?string)|null injectable HTTP client for tests */
     private $httpGet;
@@ -291,7 +297,19 @@ final class MetadataService
             $url .= '&key=' . rawurlencode($key);
         }
         $json = $this->fetchJson('google_books', $url);
-        $info = $json['items'][0]['volumeInfo'] ?? null;
+        // The isbn: search is a full-text search: catalogues or books that merely mention the ISBN
+        // come back as well (often first). Only a volume with this ISBN in its identifiers counts.
+        $info = null;
+        foreach ($json['items'] ?? [] as $item) {
+            $identifiers = array_map(
+                fn ($id) => Isbn::normalize((string) ($id['identifier'] ?? ''))[0],
+                $item['volumeInfo']['industryIdentifiers'] ?? []
+            );
+            if (in_array($isbn, $identifiers, true)) {
+                $info = $item['volumeInfo'];
+                break;
+            }
+        }
         if (!is_array($info) || empty($info['title'])) {
             return null;
         }
@@ -357,14 +375,16 @@ final class MetadataService
             $processed++;
             $now = App::nowString();
             $attempts = (int) $book['metadata_attempts'] + 1;
-            // A partial answer (one source failed, e.g. Google Books without API key) fills what
-            // it can; the book is retried later and accepted as final after MAX_ATTEMPTS.
-            $partial = (bool) ($meta['partial'] ?? false) && $attempts < self::MAX_ATTEMPTS;
             $changes = ['metadata_attempts' => $attempts, 'metadata_attempted_at' => $now];
-            if (!$partial) {
+            $schedule = self::schedule($book, $meta, $attempts);
+            if ($schedule === null) {
                 $changes['metadata_checked_at'] = $now;
+                $changes['metadata_next_attempt_at'] = null;
             } else {
-                $partials++;
+                $changes['metadata_next_attempt_at'] = $schedule;
+                if (!empty($meta['partial'])) {
+                    $partials++;
+                }
             }
             if ($meta !== null) {
                 $fill = self::fillChanges($book, $meta);
@@ -422,6 +442,31 @@ final class MetadataService
         return $changes;
     }
 
+    /**
+     * Next lookup of a book after this attempt, or null when its data counts as final:
+     * - nothing found by any source -> final
+     * - a source failed (partial) -> again after 6 h, 12 h, 1 d … until MAX_ATTEMPTS
+     * - complete but still without cover -> again in a month (sources add covers over time)
+     *
+     * @param array<string, mixed>      $book
+     * @param array<string, mixed>|null $meta
+     */
+    public static function schedule(array $book, ?array $meta, int $attempts): ?string
+    {
+        if ($meta === null) {
+            return null;
+        }
+        $hasCover = !empty($book['cover_url']) || !empty($book['cover_file']) || !empty($meta['cover_url']);
+        if (!empty($meta['partial']) && $attempts < self::MAX_ATTEMPTS) {
+            $hours = self::RETRY_HOURS[min($attempts - 1, count(self::RETRY_HOURS) - 1)];
+            return App::now()->modify("+$hours hours")->format('Y-m-d H:i:s');
+        }
+        if (!$hasCover) {
+            return App::now()->modify('+' . self::COVER_RECHECK_DAYS . ' days')->format('Y-m-d H:i:s');
+        }
+        return null;
+    }
+
     /** Books that are due for a (first or repeated) metadata lookup right now. */
     public function pendingCount(): int
     {
@@ -434,8 +479,8 @@ final class MetadataService
     {
         return [
             // Bulk scan placeholders (metadata_status set) belong to the metadata queue.
-            'metadata_checked_at IS NULL AND metadata_status IS NULL AND isbn13 IS NOT NULL AND (metadata_attempted_at IS NULL OR metadata_attempted_at < :retry_before)',
-            ['retry_before' => App::now()->modify('-' . self::RETRY_AFTER_HOURS . ' hours')->format('Y-m-d H:i:s')],
+            'metadata_checked_at IS NULL AND metadata_status IS NULL AND isbn13 IS NOT NULL AND (metadata_next_attempt_at IS NULL OR metadata_next_attempt_at <= :now)',
+            ['now' => App::nowString()],
         ];
     }
 

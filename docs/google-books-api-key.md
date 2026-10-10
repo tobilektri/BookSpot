@@ -85,7 +85,13 @@ or the *Fill in now* button that appears when books are missing covers or descri
   uses the others in the meantime.
 
 If a source is unreachable or the quota is exhausted, BookSpot keeps the data of the other sources
-and tries the missing fields again later. Existing data is never overwritten.
+and tries the missing fields again later – after 6 and 12 hours, then 1, 2, 4, 7 and 14 days. This
+matters especially for Google, which frequently answers `503 backendFailed`. Books without a cover
+are additionally checked again every month. Existing data is never overwritten.
+
+Note: Google's `isbn:` search is a full-text search and also returns catalogues or books that merely
+mention the ISBN – often as the first hit. BookSpot only accepts a volume whose ISBN list contains the
+exact ISBN.
 
 ## Security
 

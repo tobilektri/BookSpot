@@ -97,7 +97,7 @@ final class RateLimiterTest extends TestCase
                 throw new MetadataUnavailable('HTTP status 429', 429, 120);
             }
             if (str_contains($url, 'googleapis.com')) {
-                return (string) json_encode(['items' => [['volumeInfo' => ['title' => 'Impact', 'authors' => ['Eschbach']]]]]);
+                return (string) json_encode(['items' => [['volumeInfo' => ['title' => 'Impact', 'authors' => ['Eschbach'], 'industryIdentifiers' => [['type' => 'ISBN_13', 'identifier' => '9783548283951']]]]]]);
             }
             return null; // DNB: nothing found
         };

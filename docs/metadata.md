@@ -28,8 +28,16 @@ Switches: `METADATA_LOOKUP=false` (no online lookups at all), `METADATA_DNB=fals
 | After a CSV import / books with gaps | “Fill in now” in the app or the cron job, in small batches (`CRON_ENRICH_BATCH`) |
 
 **Partial results**: if a source is down while the others answered, the book gets what is available
-and the missing fields are tried again later (every 6 hours, up to 3 attempts). “Not found” only
-becomes final when every source could actually be asked.
+and is asked again later – after 6 h, 12 h, 1 day, 2, 4, 7 and 14 days (8 attempts in total). This
+matters for Google Books, which frequently answers `503 backendFailed`. “Not found” only becomes
+final when every source could actually be asked.
+
+**Books without cover** are never considered done: as long as no source had a cover, they are looked
+up again once a month (sources add covers over time).
+
+**Google Books matching**: an `isbn:` search at Google is a full-text search and also returns
+catalogues or books that merely mention the ISBN – often as the first hit. BookSpot only accepts a
+volume whose ISBN list contains the exact ISBN.
 
 ### The metadata queue (batch scanning)
 

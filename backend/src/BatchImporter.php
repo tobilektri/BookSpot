@@ -228,11 +228,12 @@ final class BatchImporter
             ];
             if ($meta !== null) {
                 $changes += MetadataService::fillChanges($book, $meta, withTitle: true);
-                // Partial answers (a source was down) are completed later by the regular enrichment.
-                if (empty($meta['partial'])) {
-                    $changes['metadata_checked_at'] = $now;
-                }
-            } else {
+            }
+            // Partial answers (a source was down) and books still without cover are completed
+            // later by the regular enrichment; everything else is final.
+            $next = MetadataService::schedule($book, $meta, (int) $book['metadata_attempts'] + 1);
+            $changes['metadata_next_attempt_at'] = $next;
+            if ($next === null) {
                 $changes['metadata_checked_at'] = $now;
             }
             $this->db->update('books', $changes, ['id' => (int) $book['id']]);
