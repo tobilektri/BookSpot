@@ -11,7 +11,9 @@ namespace BookSpot;
  * origin for fetch() (service worker), external hosts may be slow, rate
  * limited or gone, and local files also work offline.
  *
- * Sources in order: the book's cover_url, then Open Library by ISBN. Results
+ * Sources in order: the book's cover_url, then Open Library and the German
+ * National Library's cover service (publisher covers from the VLB) by ISBN –
+ * for German ISBNs (978-3) the DNB first. Results
  * are remembered (cover_status) so missing covers are not requested again on
  * every page view: "none" is retried after 30 days, transient errors (rate
  * limit, network) after an hour.
@@ -182,16 +184,39 @@ final class CoverService
             $urls[] = $coverUrl; // downloaded server-side, so plain http is fine too
         }
         if (!empty($book['isbn13'])) {
-            // default=false: 404 instead of a blank placeholder image when Open Library has no cover.
-            $urls[] = 'https://covers.openlibrary.org/b/isbn/' . $book['isbn13'] . '-L.jpg?default=false';
+            array_push($urls, ...self::isbnCandidates((string) $book['isbn13'], 'L'));
         }
         return array_values(array_unique($urls));
     }
 
-    /** Open Library allows only 100 cover requests by ISBN per 5 minutes and IP (covers by ID are not limited). */
+    /** @return list<string> */
+    private static function isbnCandidates(string $isbn13, string $size): array
+    {
+        if (!preg_match('/^97[89]\d{10}$/', $isbn13)) {
+            return [];
+        }
+        // default=false: 404 instead of a blank placeholder image when Open Library has no cover.
+        $openLibrary = 'https://covers.openlibrary.org/b/isbn/' . $isbn13 . '-' . $size . '.jpg?default=false';
+        if (!Config::bool('COVER_DNB', true)) {
+            return [$openLibrary];
+        }
+        // Publisher covers (VLB) via the DNB; 404 when there is none.
+        $dnb = 'https://portal.dnb.de/opac/mvb/cover?isbn=' . $isbn13;
+        // German-language ISBNs: the DNB has them far more often and it spares Open Library's tight limit.
+        return str_starts_with($isbn13, '9783') ? [$dnb, $openLibrary] : [$openLibrary, $dnb];
+    }
+
+    /**
+     * Open Library allows only 100 cover requests by ISBN per 5 minutes and IP
+     * (covers by ID are not limited); the DNB is throttled out of politeness.
+     */
     private static function rateLimitedProvider(string $url): ?string
     {
-        return preg_match('#^https://covers\.openlibrary\.org/b/(isbn|olid)/#', $url) ? 'open_library_covers' : null;
+        return match (true) {
+            (bool) preg_match('#^https://covers\.openlibrary\.org/b/(isbn|olid)/#', $url) => 'open_library_covers',
+            str_starts_with($url, 'https://portal.dnb.de/opac/mvb/cover') => 'dnb_covers',
+            default => null,
+        };
     }
 
     /** Network errors, rate limits and server errors are worth retrying; Open Library rate-limits with 403. */
@@ -281,8 +306,8 @@ final class CoverService
         if ($url !== null && preg_match('#^https?://#i', $url)) {
             $candidates[] = $url;
         }
-        if ($isbn13 !== null && preg_match('/^97[89]\d{10}$/', $isbn13)) {
-            $candidates[] = 'https://covers.openlibrary.org/b/isbn/' . $isbn13 . '-M.jpg?default=false';
+        if ($isbn13 !== null) {
+            array_push($candidates, ...self::isbnCandidates($isbn13, 'M'));
         }
         foreach ($candidates as $candidate) {
             $response = $this->download($candidate);
@@ -336,7 +361,7 @@ final class CoverService
         if ($target === null) {
             return ['status' => -1, 'body' => null];
         }
-        $userAgent = 'BookSpot/' . App::VERSION . ' (self-hosted book inventory)';
+        $userAgent = App::userAgent();
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [

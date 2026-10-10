@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><version>1.1</version><numberOfRecords>1</numberOfRecords><records><record><recordSchema>MARC21-xml</recordSchema><recordPacking>xml</recordPacking><recordData><record xmlns="http://www.loc.gov/MARC21/slim" type="Bibliographic">
+    <leader>00000pam a2200000 cc4500</leader>
+    <controlfield tag="001">1017384444</controlfield>
+    <controlfield tag="003">DE-101</controlfield>
+    <controlfield tag="008">111124s2012    gw ||||| |||| 00||||ger  </controlfield>
+    <datafield tag="020" ind1=" " ind2=" ">
+      <subfield code="a">9783423760508</subfield>
+      <subfield code="c">Pp. : EUR 12.95 (DE), EUR 13.40 (AT), sfr 18.90 (freier Pr.)</subfield>
+      <subfield code="9">978-3-423-76050-8</subfield>
+    </datafield>
+    <datafield tag="041" ind1=" " ind2=" ">
+      <subfield code="a">ger</subfield>
+      <subfield code="h">eng</subfield>
+    </datafield>
+    <datafield tag="100" ind1="1" ind2=" ">
+      <subfield code="0">(DE-588)1021795046</subfield>
+      <subfield code="a">Measday, Stephen</subfield>
+      <subfield code="d">1950-</subfield>
+      <subfield code="e">Verfasser</subfield>
+      <subfield code="4">aut</subfield>
+      <subfield code="2">gnd</subfield>
+    </datafield>
+    <datafield tag="245" ind1="1" ind2="0">
+      <subfield code="a">&#152;Die&#156; fünf Temponauten</subfield>
+      <subfield code="n">[...]</subfield>
+      <subfield code="p">Treffpunkt 2321</subfield>
+      <subfield code="c">Stephen Measday. Aus dem Engl. von Anja Hansen-Schmidt</subfield>
+    </datafield>
+    <datafield tag="264" ind1="3" ind2="1">
+      <subfield code="a">München</subfield>
+      <subfield code="b">Dt. Taschenbuch-Verl.</subfield>
+      <subfield code="c">2012</subfield>
+    </datafield>
+    <datafield tag="300" ind1=" " ind2=" ">
+      <subfield code="a">316 S.</subfield>
+    </datafield>
+    <datafield tag="653" ind1=" " ind2=" ">
+      <subfield code="a">(Produktform)Hardback</subfield>
+    </datafield>
+    <datafield tag="653" ind1=" " ind2=" ">
+      <subfield code="a">(Lesealter)ab 12 Jahre bis 14 Jahre</subfield>
+    </datafield>
+    <datafield tag="653" ind1=" " ind2=" ">
+      <subfield code="a">(VLB-WN)2260: Taschenbuch / Kinder- und Jugendbücher/Jugendbücher ab 12 Jahre</subfield>
+    </datafield>
+    <datafield tag="773" ind1="0" ind2="8">
+      <subfield code="q">tr42321</subfield>
+      <subfield code="w">(DE-101)1021795496</subfield>
+    </datafield>
+    <datafield tag="856" ind1="4" ind2="2">
+      <subfield code="m">X:MVB</subfield>
+      <subfield code="q">text/html</subfield>
+      <subfield code="u">https://services.dnb.de/plus/idn/1017384444/blurb/</subfield>
+      <subfield code="3">Inhaltstext</subfield>
+    </datafield>
+  </record></recordData><recordPosition>1</recordPosition></record></records></searchRetrieveResponse>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><version>1.1</version><numberOfRecords>2</numberOfRecords><records><record><recordSchema>MARC21-xml</recordSchema><recordPacking>xml</recordPacking><recordData><record xmlns="http://www.loc.gov/MARC21/slim" type="Bibliographic">
+    <leader>00000nam a2200000 c 4500</leader>
+    <controlfield tag="001">207530025</controlfield>
+    <controlfield tag="003">DE-101</controlfield>
+    <controlfield tag="005">20171201223821.0</controlfield>
+    <controlfield tag="007">tu</controlfield>
+    <controlfield tag="008">941217s1989    xx ||||| |||| 00||||ger  </controlfield>
+    <datafield tag="020" ind1=" " ind2=" ">
+      <subfield code="a">9783358000571</subfield>
+      <subfield code="c">M 1.60</subfield>
+      <subfield code="9">978-3-358-00057-1</subfield>
+    </datafield>
+    <datafield tag="041" ind1=" " ind2=" ">
+      <subfield code="a">ger</subfield>
+    </datafield>
+    <datafield tag="100" ind1="1" ind2=" ">
+      <subfield code="0">(DE-588)118720708</subfield>
+      <subfield code="a">Kant, Uwe</subfield>
+      <subfield code="d">1936-</subfield>
+      <subfield code="e">Verfasser</subfield>
+      <subfield code="4">aut</subfield>
+      <subfield code="2">gnd</subfield>
+    </datafield>
+    <datafield tag="245" ind1="1" ind2="0">
+      <subfield code="a">&#152;Der&#156; kleine Zauberer und die große 5[Fünf]</subfield>
+      <subfield code="c">Uwe Kant. [Ill. von Manfred Bofinger]</subfield>
+    </datafield>
+    <datafield tag="250" ind1=" " ind2=" ">
+      <subfield code="a">4. Taschenbuchaufl.</subfield>
+    </datafield>
+    <datafield tag="264" ind1=" " ind2="1">
+      <subfield code="a">Berlin</subfield>
+      <subfield code="b">Kinderbuchverlag</subfield>
+      <subfield code="c">1989</subfield>
+    </datafield>
+    <datafield tag="300" ind1=" " ind2=" ">
+      <subfield code="a">63 S.</subfield>
+      <subfield code="b">Ill.</subfield>
+      <subfield code="c">18 cm</subfield>
+    </datafield>
+    <datafield tag="490" ind1="1" ind2=" ">
+      <subfield code="a">Alex-Taschenbücher</subfield>
+      <subfield code="v">70</subfield>
+    </datafield>
+  </record></recordData><recordPosition>1</recordPosition></record></records></searchRetrieveResponse>

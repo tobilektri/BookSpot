@@ -16,6 +16,18 @@ sources only fill fields that are still empty:
 The lookup stops early once title, authors, pages, year, publisher, genre, cover and description are
 known. Data you entered yourself is never overwritten.
 
+DNB records follow library cataloguing rules, which BookSpot tidies up: ISBD punctuation is removed,
+the spelled-out form of numbers that is only there for sorting is dropped (“Die große 5[Fünf]” →
+“Die große 5”), volumes of multi-part works get their part title (“Die fünf Temponauten. Treffpunkt
+2321”) and abbreviated publishers are expanded where it is unambiguous (“Bergverl.” → “Bergverlag”).
+
+**Titles saved by versions before 1.7.3** are corrected once after the update: migration 010 marks
+every book that exists at that moment, and the cron job looks them up at the DNB again, 30 per run
+(2 requests per second). A title is only replaced if it is still exactly what the old version
+made of the DNB record – titles from other sources or edited by hand stay as they are. When all books
+are done the marker is removed; books added later are never looked up for this. To do it in one go:
+`php backend/bin/repair-dnb-titles.php`.
+
 Switches: `METADATA_LOOKUP=false` (no online lookups at all), `METADATA_DNB=false`, no
 `GOOGLE_BOOKS_API_KEY` = Google is skipped (it would only answer 429).
 
@@ -28,8 +40,16 @@ Switches: `METADATA_LOOKUP=false` (no online lookups at all), `METADATA_DNB=fals
 | After a CSV import / books with gaps | “Fill in now” in the app or the cron job, in small batches (`CRON_ENRICH_BATCH`) |
 
 **Partial results**: if a source is down while the others answered, the book gets what is available
-and the missing fields are tried again later (every 6 hours, up to 3 attempts). “Not found” only
-becomes final when every source could actually be asked.
+and is asked again later – after 6 h, 12 h, 1 day, 2, 4, 7 and 14 days (8 attempts in total). This
+matters for Google Books, which frequently answers `503 backendFailed`. “Not found” only becomes
+final when every source could actually be asked.
+
+**Books without cover** are never considered done: as long as no source had a cover, they are looked
+up again once a month (sources add covers over time).
+
+**Google Books matching**: an `isbn:` search at Google is a full-text search and also returns
+catalogues or books that merely mention the ISBN – often as the first hit. BookSpot only accepts a
+volume whose ISBN list contains the exact ISBN.
 
 ### The metadata queue (batch scanning)
 
@@ -48,10 +68,11 @@ no daemon or cache server needed):
 
 | Source | Default | Setting |
 |---|---|---|
-| Open Library API | 1 request/s | `RATE_LIMIT_OPEN_LIBRARY` |
+| Open Library API | 1 request/s, **3 with `CONTACT_EMAIL`** ([their limits](https://openlibrary.org/developers/api)) | `RATE_LIMIT_OPEN_LIBRARY` |
 | German National Library | 2 requests/s | `RATE_LIMIT_DNB` |
 | Google Books | 5 requests/s | `RATE_LIMIT_GOOGLE_BOOKS` |
 | Open Library covers by ISBN | 1 every 3 s (Open Library allows 100 per 5 minutes and IP) | `RATE_LIMIT_OPEN_LIBRARY_COVERS` |
+| DNB covers | 2 requests/s | `RATE_LIMIT_DNB_COVERS` |
 
 - A request **waits** briefly for its slot (a few seconds at most); if the wait would be longer, the
   source is skipped for now and the next one is used.
@@ -67,7 +88,11 @@ single 429 from simulated strict sources).
 Covers are **downloaded once by the server and stored locally** in `var/covers/` – include that
 folder in your backups.
 
-- Source: the book's cover URL (from the lookup or entered by hand), otherwise Open Library by ISBN.
+- Sources, in order: the book's cover URL (from the lookup or entered by hand), then by ISBN
+  [Open Library](https://openlibrary.org/dev/docs/api/covers) and the German National Library's cover
+  service (`portal.dnb.de/opac/mvb/cover?isbn=…`, publisher covers from the VLB / buchhandel.de).
+  For German ISBNs (978-3…) the DNB is asked first – it has them far more often and it spares Open
+  Library's tight limit. Switch it off with `COVER_DNB=false`.
 - Images are validated (real JPEG/PNG/WebP/GIF, not the 1×1 placeholder some services return) and
   scaled down to 600 px height when GD is available.
 - They are served by `GET /api/v1/books/{id}/cover` with long-lived browser caching and an ETag; the

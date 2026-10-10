@@ -90,7 +90,13 @@ Kommt ein JSON mit `"items": [...]` zurück, funktioniert der Key. In SchmökerS
   (Retry-After bzw. 1, 2, 4 … 60 Minuten) und nutzt so lange die anderen.
 
 Ist eine Quelle nicht erreichbar oder das Kontingent erschöpft, übernimmt SchmökerSpot die Daten
-der übrigen Quellen und versucht die fehlenden Felder später erneut (alle 6 Stunden, maximal 3 Versuche).
+der übrigen Quellen und versucht die fehlenden Felder später erneut – nach 6 und 12 Stunden, dann nach
+1, 2, 4, 7 und 14 Tagen. Das ist vor allem für Google wichtig, das häufig mit `503 backendFailed`
+antwortet. Bücher ohne Cover werden außerdem monatlich erneut geprüft.
+
+Hinweis: Die `isbn:`-Suche von Google ist eine Volltextsuche und liefert auch Kataloge oder Bücher,
+die die ISBN nur im Text erwähnen – oft sogar als ersten Treffer. SchmökerSpot übernimmt nur ein
+Ergebnis, dessen ISBN-Liste genau diese ISBN enthält.
 Bereits vorhandene Angaben werden nie überschrieben.
 
 ## Sicherheit

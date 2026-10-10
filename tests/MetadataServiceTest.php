@@ -14,7 +14,9 @@ use BookSpot\ShelfService;
 final class MetadataServiceTest extends TestCase
 {
     private const OPEN_LIBRARY = '{"ISBN:9783548283951":{"title":"Impact","authors":[{"name":"Bernd Steinhardt"}],"publishers":[{"name":"Ullstein"}],"publish_date":"2011","number_of_pages":528,"subjects":[{"name":"Accessible book"},{"name":"Thriller / Spannung"}],"cover":{"medium":"http://covers.openlibrary.org/b/id/1-M.jpg","large":"http://covers.openlibrary.org/b/id/1-L.jpg"}}}';
-    private const GOOGLE = '{"items":[{"volumeInfo":{"title":"Impact","description":"<p>Ein Meteorit …</p>","categories":["Fiction"],"language":"de","imageLinks":{"thumbnail":"http://books.google.com/x&edge=curl"}}}]}';
+    // Like the real API: the isbn: search also returns volumes that only mention the ISBN – first.
+    private const GOOGLE = '{"items":[{"volumeInfo":{"title":"Penguin Classics: Catalogue","description":"Every title in print …","industryIdentifiers":[{"type":"ISBN_13","identifier":"9780141398846"}],"imageLinks":{"thumbnail":"http://books.google.com/catalogue"}}},'
+        . '{"volumeInfo":{"title":"Impact","description":"<p>Ein Meteorit …</p>","categories":["Fiction"],"language":"de","industryIdentifiers":[{"type":"ISBN_10","identifier":"3548283950"},{"type":"OTHER","identifier":"UOM:39015"}],"imageLinks":{"thumbnail":"http://books.google.com/x&edge=curl"}}}]}';
 
     protected function setUp(): void
     {
@@ -46,7 +48,7 @@ final class MetadataServiceTest extends TestCase
 
     /** Real Open Library answer for this ISBN (no authors/pages/year/subjects). */
     private const OPEN_LIBRARY_SPARSE = '{"ISBN:9783548283951": {"url": "http://openlibrary.org/books/OL27469599M/Impact", "key": "/books/OL27469599M", "title": "Impact", "identifiers": {"amazon": ["3548283950"], "isbn_10": ["3548283950"], "isbn_13": ["9783548283951"], "openlibrary": ["OL27469599M"]}, "publishers": [{"name": "Ullstein Taschenbuchvlg."}], "cover": {"small": "https://covers.openlibrary.org/b/id/8927996-S.jpg", "medium": "https://covers.openlibrary.org/b/id/8927996-M.jpg", "large": "https://covers.openlibrary.org/b/id/8927996-L.jpg"}}}';
-    private const GOOGLE_FULL = '{"items":[{"volumeInfo":{"title":"Impact","authors":["Bernd Steinhardt"],"publisher":"Ullstein","publishedDate":"2011-05-12","pageCount":528,"categories":["Fiction"],"language":"de"}}]}';
+    private const GOOGLE_FULL = '{"items":[{"volumeInfo":{"title":"Impact","authors":["Bernd Steinhardt"],"publisher":"Ullstein","publishedDate":"2011-05-12","pageCount":528,"categories":["Fiction"],"language":"de","industryIdentifiers":[{"type":"ISBN_13","identifier":"9783548283951"}]}}]}';
 
     public function testSparseOpenLibraryAnswerIsCompletedByGoogle(): void
     {
@@ -83,12 +85,18 @@ final class MetadataServiceTest extends TestCase
         self::assertSame(0, $result['remaining'], 'partial books wait for the retry interval');
         self::assertSame('https://covers.openlibrary.org/b/id/8927996-L.jpg', $books->get($book['id'], $user['id'])['cover_url']);
 
-        // Retried after 6 hours; after MAX_ATTEMPTS the Open Library data counts as final.
+        // Retried at growing intervals (6 h, 12 h, 1 d … 14 d); after MAX_ATTEMPTS the Open Library data counts as final.
+        App::setNow(App::now()->modify('+5 hours')->format('Y-m-d H:i:s'));
+        self::assertSame(0, $service->pendingCount(), 'not before 6 hours');
+        $waits = [];
         for ($i = 2; $i <= MetadataService::MAX_ATTEMPTS; $i++) {
-            App::setNow(App::now()->modify('+7 hours')->format('Y-m-d H:i:s'));
+            $next = (string) $this->db->value('SELECT metadata_next_attempt_at FROM books WHERE id = ?', [$book['id']]);
+            $waits[] = (int) round((strtotime($next . ' UTC') - strtotime($this->db->value('SELECT metadata_attempted_at FROM books WHERE id = ?', [$book['id']]) . ' UTC')) / 3600);
+            App::setNow($next);
             self::assertSame(2, $service->pendingCount());
             $service->enrichBatch();
         }
+        self::assertSame([6, 12, 24, 48, 96, 168, 336], $waits);
         self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM books WHERE metadata_checked_at IS NULL'));
         self::assertNotNull($second);
     }
@@ -107,6 +115,55 @@ final class MetadataServiceTest extends TestCase
 
         self::assertNull(MetadataService::parseDnbRecord('<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>0</numberOfRecords></searchRetrieveResponse>'));
         self::assertNull(MetadataService::parseDnbRecord('not xml'));
+    }
+
+    public function testParsesRealDnbRecordsWithCataloguingConventions(): void
+    {
+        $zauberer = MetadataService::parseDnbRecord((string) file_get_contents(__DIR__ . '/fixtures/dnb_9783358000571.xml'));
+        self::assertSame('Der kleine Zauberer und die große 5', $zauberer['title']);
+        self::assertSame('Uwe Kant', $zauberer['authors']);
+        self::assertSame(63, $zauberer['pages']);
+
+        $temponauten = MetadataService::parseDnbRecord((string) file_get_contents(__DIR__ . '/fixtures/dnb_9783423760508.xml'));
+        self::assertSame('Die fünf Temponauten. Treffpunkt 2321', $temponauten['title'], 'unknown volume number "[...]" is left out');
+        self::assertSame('Dt. Taschenbuch-Verlag', $temponauten['publisher']);
+        self::assertSame('https://services.dnb.de/plus/idn/1017384444/blurb/', $temponauten['blurb_url']);
+    }
+
+    public function testDnbCataloguingConventionsAreRemoved(): void
+    {
+        $marc = fn (string $fields) => '<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><records><record><recordData>'
+            . '<record xmlns="http://www.loc.gov/MARC21/slim">' . $fields . '</record></recordData></record></records></searchRetrieveResponse>';
+        $field = function (string $tag, array $subfields): string {
+            $xml = '';
+            foreach ($subfields as [$code, $value]) {
+                $xml .= '<subfield code="' . $code . '">' . htmlspecialchars($value) . '</subfield>';
+            }
+            return '<datafield tag="' . $tag . '" ind1="1" ind2="0">' . $xml . '</datafield>';
+        };
+
+        // Spelled-out number for sorting, non-sorting markers around the article, abbreviated publisher.
+        $record = MetadataService::parseDnbRecord($marc(
+            $field('245', [['a', "\u{0098}Der\u{009C} kleine Zauberer und die große 5[Fünf]"], ['c', 'Uwe Kant']])
+            . $field('260', [['a', 'Berlin :'], ['b', 'Kinderbuchverl.,'], ['c', '1989']])
+        ));
+        self::assertSame('Der kleine Zauberer und die große 5', $record['title']);
+        self::assertSame('Kinderbuchverlag', $record['publisher']);
+
+        // Volume of a multi-part work: the part title belongs to the title.
+        $record = MetadataService::parseDnbRecord($marc(
+            $field('245', [['a', 'Die fünf Temponauten'], ['p', 'Treffpunkt 2321 /'], ['c', 'Stephen Measday']])
+            . $field('264', [['a', 'München'], ['b', 'Dt. Taschenbuch-Verl.'], ['c', '2012']])
+        ));
+        self::assertSame('Die fünf Temponauten. Treffpunkt 2321', $record['title']);
+        self::assertSame('Dt. Taschenbuch-Verlag', $record['publisher']);
+
+        $record = MetadataService::parseDnbRecord($marc($field('245', [['a', 'Die Abenteuer des Tom Sawyer'], ['n', '[1]'], ['p', 'Die Schatzsuche']])));
+        self::assertSame('Die Abenteuer des Tom Sawyer. 1, Die Schatzsuche', $record['title']);
+
+        self::assertSame('Die 3 Fragezeichen', MetadataService::cleanMarc('Die 3 [drei] Fragezeichen :'));
+        self::assertSame('Ohne Titel', MetadataService::cleanMarc('[Ohne Titel]'));
+        self::assertSame('Ein Buch [Roman]', MetadataService::cleanMarc('Ein Buch [Roman]'), 'other brackets stay');
     }
 
     public function testDnbFillsGapsOfSparseOpenLibraryAnswer(): void
@@ -183,5 +240,40 @@ final class MetadataServiceTest extends TestCase
         self::assertSame(528, $enriched['pages']);
         self::assertSame('Ullstein', $enriched['publisher']);
         self::assertStringStartsWith('https://covers.openlibrary.org', $enriched['cover_url']);
+    }
+
+    public function testGoogleOnlyAcceptsTheVolumeWithThisIsbn(): void
+    {
+        Config::set('METADATA_DNB', 'false');
+        $onlyCatalogue = '{"items":[{"volumeInfo":{"title":"Penguin Classics: Catalogue","industryIdentifiers":[{"type":"ISBN_13","identifier":"9780141398846"}]}}]}';
+        $service = new MetadataService($this->db, fn (string $url) => str_contains($url, 'googleapis') ? $onlyCatalogue : null);
+        self::assertNull($service->lookup('9780141439518'), 'a catalogue that merely mentions the ISBN is not the book');
+
+        $service = new MetadataService($this->db, fn (string $url) => str_contains($url, 'googleapis') ? self::GOOGLE : null);
+        $meta = $service->lookup('9783548283951');
+        self::assertSame('Impact', $meta['title'], 'matched via its ISBN-10, although listed second');
+        Config::set('METADATA_DNB', 'true');
+    }
+
+    public function testBooksWithoutCoverAreCheckedAgainMonthly(): void
+    {
+        Config::set('METADATA_DNB', 'false');
+        $user = $this->createUser();
+        $books = new BookService($this->db, new ShelfService($this->db));
+        $book = $books->create(['isbn' => '9783548283951', 'title' => 'Impact'], $user['id']);
+        $noCover = '{"ISBN:9783548283951":{"title":"Impact","authors":[{"name":"Bernd Steinhardt"}]}}';
+        $google = '{"items":[{"volumeInfo":{"title":"Impact","industryIdentifiers":[{"type":"ISBN_13","identifier":"9783548283951"}],"imageLinks":{"thumbnail":"http://books.google.com/cover"}}}]}';
+
+        // Every source answered, none has a cover: not final, but no hurry either.
+        (new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary') ? $noCover : null))->enrichBatch();
+        self::assertNull($this->db->value('SELECT metadata_checked_at FROM books WHERE id = ?', [$book['id']]));
+        self::assertSame('2026-11-08 12:00:00', $this->db->value('SELECT metadata_next_attempt_at FROM books WHERE id = ?', [$book['id']]));
+
+        // A month later Google has a cover: taken over, now final.
+        App::setNow('2026-11-08 12:00:00');
+        (new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary') ? $noCover : $google))->enrichBatch();
+        self::assertSame('https://books.google.com/cover', $books->get($book['id'], $user['id'])['cover_url']);
+        self::assertNotNull($this->db->value('SELECT metadata_checked_at FROM books WHERE id = ?', [$book['id']]));
+        Config::set('METADATA_DNB', 'true');
     }
 }

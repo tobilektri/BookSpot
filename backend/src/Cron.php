@@ -23,6 +23,8 @@ final class Cron
         if (Config::bool('METADATA_LOOKUP', true) && Config::bool('CRON_ENRICH_METADATA', true)) {
             $result['metadata'] = (new MetadataService($db))->enrichBatch(Config::int('CRON_ENRICH_BATCH', 20), 60.0);
         }
+        // One-time after updating to 1.7.3: titles read from the DNB by older versions.
+        $result['dnb_titles'] = (new DnbTitleRepair($db, new MetadataService($db)))->run(30, 30.0);
         // Download covers ahead of time (Open Library allows ~100 ISBN lookups per 5 minutes).
         $covers = new CoverService($db);
         $covers->maxWait = 5.0;

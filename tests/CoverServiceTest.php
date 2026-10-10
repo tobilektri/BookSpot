@@ -6,6 +6,7 @@ namespace BookSpot\Tests;
 
 use BookSpot\App;
 use BookSpot\BookService;
+use BookSpot\Config;
 use BookSpot\CoverService;
 use BookSpot\RateLimiter;
 use BookSpot\ShelfService;
@@ -61,23 +62,44 @@ final class CoverServiceTest extends TestCase
         self::assertTrue($this->books->get($book['id'], $this->user['id'])['has_cover']);
     }
 
-    public function testFallsBackToOpenLibraryAndRemembersMissingCovers(): void
+    public function testFallsBackToIsbnSourcesAndRemembersMissingCovers(): void
     {
         $book = $this->books->create(['title' => 'Ohne Cover', 'isbn' => '9783548283951'], $this->user['id']);
-        $calls = 0;
+        $calls = [];
         $service = new CoverService($this->db, function (string $url) use (&$calls) {
-            $calls++;
-            self::assertStringContainsString('covers.openlibrary.org/b/isbn/9783548283951-L.jpg?default=false', $url);
+            $calls[] = $url;
             return ['status' => 404, 'body' => null];
         });
         self::assertNull($service->ensure($book['id']));
         self::assertNull($service->ensure($book['id']));
-        self::assertSame(1, $calls, '"none" is not retried on every view');
+        self::assertSame([
+            'https://portal.dnb.de/opac/mvb/cover?isbn=9783548283951', // German ISBN: DNB first
+            'https://covers.openlibrary.org/b/isbn/9783548283951-L.jpg?default=false',
+        ], $calls, '"none" is not retried on every view');
         self::assertFalse($this->books->get($book['id'], $this->user['id'])['has_cover']);
 
         App::setNow('2026-11-10 12:00:00');
         $service->ensure($book['id']);
-        self::assertSame(2, $calls, 'retried after 30 days');
+        self::assertCount(4, $calls, 'retried after 30 days');
+    }
+
+    public function testDnbCoverFillsGapsOfOpenLibrary(): void
+    {
+        $english = $this->books->create(['title' => 'Great Expectations', 'isbn' => '9780141439563'], $this->user['id']);
+        $calls = [];
+        $service = new CoverService($this->db, function (string $url) use (&$calls) {
+            $calls[] = $url;
+            return str_contains($url, 'portal.dnb.de') ? ['status' => 200, 'body' => self::png(100, 150)] : ['status' => 404, 'body' => null];
+        });
+        self::assertNotNull($service->ensure($english['id']));
+        self::assertSame([
+            'https://covers.openlibrary.org/b/isbn/9780141439563-L.jpg?default=false',
+            'https://portal.dnb.de/opac/mvb/cover?isbn=9780141439563',
+        ], $calls, 'other ISBNs: Open Library first');
+
+        Config::set('COVER_DNB', 'false');
+        self::assertSame(['https://covers.openlibrary.org/b/isbn/9783548283951-L.jpg?default=false'], CoverService::candidates(['isbn13' => '9783548283951']));
+        Config::set('COVER_DNB', null);
     }
 
     public function testRateLimitIsRetriedLaterAndStopsTheBatch(): void
@@ -85,7 +107,10 @@ final class CoverServiceTest extends TestCase
         $a = $this->books->create(['title' => 'A', 'isbn' => '9783548283951'], $this->user['id']);
         $this->books->create(['title' => 'B', 'isbn' => '9783404139873'], $this->user['id']);
         $calls = 0;
-        $limited = new CoverService($this->db, function () use (&$calls) {
+        $limited = new CoverService($this->db, function (string $url) use (&$calls) {
+            if (str_contains($url, 'portal.dnb.de')) {
+                return ['status' => 404, 'body' => null];
+            }
             $calls++;
             return ['status' => 403, 'body' => null]; // Open Library rate limit
         });
@@ -159,7 +184,11 @@ final class CoverServiceTest extends TestCase
         });
         $preview = $service->preview('https://example.org/missing.jpg', '9783548283951');
         self::assertSame('image/png', $preview['mime']);
-        self::assertSame(['https://example.org/missing.jpg', 'https://covers.openlibrary.org/b/isbn/9783548283951-M.jpg?default=false'], $calls);
+        self::assertSame([
+            'https://example.org/missing.jpg',
+            'https://portal.dnb.de/opac/mvb/cover?isbn=9783548283951',
+            'https://covers.openlibrary.org/b/isbn/9783548283951-M.jpg?default=false',
+        ], $calls);
         self::assertSame([], glob(CoverService::dir() . '/*') ?: []);
         self::assertNull($service->preview('javascript:alert(1)', 'nope'));
     }
