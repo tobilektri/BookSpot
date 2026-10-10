@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BookSpot\Tests;
 
+use BookSpot\App;
 use BookSpot\Config;
 use BookSpot\MetadataService;
 use BookSpot\MetadataUnavailable;
@@ -39,6 +40,30 @@ final class RateLimiterTest extends TestCase
         self::assertGreaterThan(0.0, $limiter->attempt('k', 6, 60));
         // keys are independent
         self::assertSame(0.0, $limiter->attempt('other', 6, 60));
+    }
+
+    public function testOpenLibraryAllowsMoreRequestsWithContactAddress(): void
+    {
+        Config::set('RATE_LIMIT_OPEN_LIBRARY', null);
+        Config::set('CONTACT_EMAIL', null);
+        self::assertSame(1.0, RateLimiter::providerInterval('open_library'));
+        self::assertSame('BookSpot/' . App::VERSION . ' (https://github.com/tobilektri/BookSpot)', App::userAgent());
+
+        Config::set('CONTACT_EMAIL', 'books@example.org');
+        self::assertEqualsWithDelta(1 / 3, RateLimiter::providerInterval('open_library'), 0.0001);
+        Config::set('APP_URL', 'https://books.example.org');
+        self::assertSame('BookSpot/' . App::VERSION . ' (https://books.example.org; books@example.org)', App::userAgent());
+
+        Config::set('CONTACT_EMAIL', "evil@example.org\r\nX-Injected: 1");
+        self::assertNull(App::contactEmail(), 'invalid addresses never reach the header');
+        self::assertSame(1.0, RateLimiter::providerInterval('open_library'));
+
+        Config::set('CONTACT_EMAIL', 'books@example.org');
+        Config::set('RATE_LIMIT_OPEN_LIBRARY', '2');
+        self::assertSame(0.5, RateLimiter::providerInterval('open_library'), 'an explicit setting wins');
+
+        Config::set('CONTACT_EMAIL', null);
+        Config::set('APP_URL', null);
     }
 
     public function testThrottleSpacesCallsAndRespectsMaxWait(): void

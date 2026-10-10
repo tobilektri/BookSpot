@@ -65,7 +65,8 @@ Auch eine Installation im Unterverzeichnis (`example.org/buecher/`) geht – die
 
    Ohne MySQL-Datenbank: `DB_DRIVER=sqlite` – die Datei entsteht in `var/`.
 3. Optional, aber lohnend: ein kostenloser [Google-Books-API-Key](google-books-api-key.md) für
-   Buchdaten in anderen Sprachen und `MAIL_FROM` für Einladungs-E-Mails.
+   Buchdaten in anderen Sprachen, `MAIL_FROM` für Einladungs-E-Mails und `CONTACT_EMAIL` – wird bei
+   Anfragen an die Buchdaten-Quellen mitgeschickt, Open Library erlaubt dann 3 statt 1 Anfrage pro Sekunde.
 
 Alle Einstellungen (englisch): [configuration.md](../configuration.md).
 

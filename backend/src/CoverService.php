@@ -361,7 +361,7 @@ final class CoverService
         if ($target === null) {
             return ['status' => -1, 'body' => null];
         }
-        $userAgent = 'BookSpot/' . App::VERSION . ' (self-hosted book inventory)';
+        $userAgent = App::userAgent();
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [

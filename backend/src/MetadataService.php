@@ -595,7 +595,7 @@ final class MetadataService
 
     public static function httpGet(string $url, string $accept = 'application/json'): ?string
     {
-        $userAgent = 'BookSpot/' . App::VERSION . ' (self-hosted book inventory; ' . (Config::get('APP_URL') ?? 'https://github.com/tobilektri/BookSpot') . ')';
+        $userAgent = App::userAgent();
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [

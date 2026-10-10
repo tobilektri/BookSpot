@@ -63,7 +63,8 @@ Installing into a sub-directory (`example.org/books/`) works as well – the app
 
    Without a MySQL database: `DB_DRIVER=sqlite` – the file is created in `var/`.
 3. Optional but worthwhile: a free [Google Books API key](google-books-api-key.md) for book data in
-   other languages, and `MAIL_FROM` for invitation e-mails.
+   other languages, `MAIL_FROM` for invitation e-mails, and `CONTACT_EMAIL` – sent along with requests
+   to the book data sources, so Open Library allows 3 instead of 1 request per second.
 
 All settings: [configuration.md](configuration.md).
 

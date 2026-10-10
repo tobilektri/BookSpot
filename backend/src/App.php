@@ -9,10 +9,32 @@ namespace BookSpot;
  */
 final class App
 {
-    public const VERSION = '1.7.4';
+    public const VERSION = '1.7.5';
 
     private static ?Database $db = null;
     private static ?string $fixedNow = null;
+
+    /**
+     * User-Agent for requests to book data and cover sources: name, version, the
+     * instance URL and – when CONTACT_EMAIL is set – a contact address, so the
+     * services can reach the operator instead of blocking. Open Library allows
+     * identified clients 3 instead of 1 request per second.
+     */
+    public static function userAgent(): string
+    {
+        $details = [preg_replace('/[\x00-\x1F\x7F;()]/', '', (string) (Config::get('APP_URL') ?? 'https://github.com/tobilektri/BookSpot'))];
+        if (($contact = self::contactEmail()) !== null) {
+            $details[] = $contact;
+        }
+        return 'BookSpot/' . self::VERSION . ' (' . implode('; ', $details) . ')';
+    }
+
+    /** CONTACT_EMAIL when it is a valid address (it ends up in an HTTP header). */
+    public static function contactEmail(): ?string
+    {
+        $email = trim((string) Config::get('CONTACT_EMAIL', ''));
+        return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) && !preg_match('/[\s;()]/', $email) ? $email : null;
+    }
 
     public static function root(): string
     {

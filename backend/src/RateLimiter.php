@@ -20,11 +20,11 @@ final class RateLimiter
 {
     /** Default spacing between calls per provider in seconds (configurable in .env as requests per second). */
     private const PROVIDER_INTERVALS = [
-        'open_library' => 1.0,          // RATE_LIMIT_OPEN_LIBRARY=1
-        'dnb' => 1.0,                   // RATE_LIMIT_DNB=1
+        'open_library' => 1.0,          // RATE_LIMIT_OPEN_LIBRARY=1 (3 with CONTACT_EMAIL, see providerInterval())
+        'dnb' => 0.5,                   // RATE_LIMIT_DNB=2
         'google_books' => 0.2,          // RATE_LIMIT_GOOGLE_BOOKS=5
         'open_library_covers' => 3.0,   // covers by ISBN: Open Library allows 100 per 5 minutes and IP
-        'dnb_covers' => 1.0,            // RATE_LIMIT_DNB_COVERS=1
+        'dnb_covers' => 0.5,            // RATE_LIMIT_DNB_COVERS=2
     ];
     private const MAX_BLOCK_SECONDS = 3600;
     private const BASE_BLOCK_SECONDS = 60;
@@ -50,6 +50,11 @@ final class RateLimiter
         $rate = Config::get('RATE_LIMIT_' . strtoupper($provider));
         if ($rate !== null && is_numeric($rate) && (float) $rate > 0) {
             return 1 / (float) $rate;
+        }
+        // Open Library: 1 request per second, 3 for clients that identify themselves
+        // with a contact address in the User-Agent (https://openlibrary.org/developers/api).
+        if ($provider === 'open_library' && App::contactEmail() !== null) {
+            return 1 / 3;
         }
         return self::PROVIDER_INTERVALS[$provider] ?? 1.0;
     }
