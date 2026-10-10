@@ -3,8 +3,9 @@ import Dexie from 'dexie'
 /**
  * IndexedDB (Dexie) storage for offline use:
  *  - books: last known copy of the catalogue incl. the user's personal data
- *  - queue: changes made offline, replayed against api/sync.php on reconnect
+ *  - queue: changes made offline, replayed against api/v1/sync on reconnect
  *  - meta:  misc. key/value pairs (last sync time, cached shelves, …)
+ *  - scans: bulk scans – stored at once, sent to api/v1/books/batch when online
  */
 export const db = new Dexie('bookspot')
 
@@ -12,6 +13,9 @@ db.version(1).stores({
   books: 'id, isbn13, isbn10, title, shelf_id',
   queue: '++seq, book_id, type',
   meta: 'key',
+})
+db.version(2).stores({
+  scans: 'id, state, scanned_at',
 })
 
 export async function getMeta(key, fallback = null) {

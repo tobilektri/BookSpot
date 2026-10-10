@@ -2,22 +2,8 @@
 
 declare(strict_types=1);
 
+// Deprecated endpoint, kept for installed app versions and existing cron URLs.
+// Handled by the central router (backend/src/Http/Kernel.php); use /api/v1/… instead.
 require __DIR__ . '/../../backend/bootstrap.php';
 
-use BookSpot\Api;
-use BookSpot\App;
-use BookSpot\Auth;
-use BookSpot\MetadataService;
-use BookSpot\MetadataUnavailable;
-use BookSpot\Request;
-
-// GET lookup.php?isbn=978… -> metadata from Open Library (fallback: Google Books)
-Api::run(function (Request $req) {
-    Auth::requireUser();
-    try {
-        $meta = (new MetadataService(App::db()))->lookup((string) $req->query('isbn', ''));
-    } catch (MetadataUnavailable) {
-        return ['found' => false, 'metadata' => null, 'unavailable' => true];
-    }
-    return ['found' => $meta !== null, 'metadata' => $meta];
-});
+BookSpot\Http\Kernel::serve('/lookup.php');

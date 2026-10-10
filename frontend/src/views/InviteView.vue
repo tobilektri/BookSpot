@@ -18,7 +18,7 @@ const busy = ref(false)
 
 onMounted(async () => {
   try {
-    info.value = await api('auth.php', { query: { action: 'invite_info', token: props.token } })
+    info.value = await api(`v1/auth/invites/${encodeURIComponent(props.token)}`)
     if (info.value.locale) setLocale(info.value.locale)
   } catch (e) {
     error.value = errorMessage(e)
@@ -33,7 +33,7 @@ async function submit() {
   }
   busy.value = true
   try {
-    await switchIdentity(() => api('auth.php', { method: 'POST', query: { action: 'accept_invite' }, body: { token: props.token, password: password.value } }), '#/')
+    await switchIdentity(() => api('v1/auth/invites/accept', { method: 'POST', body: { token: props.token, password: password.value } }), '#/')
   } catch (e) {
     busy.value = false
     if (e instanceof ApiError && e.fields.password) fieldErr.value = fieldError(e.fields.password)

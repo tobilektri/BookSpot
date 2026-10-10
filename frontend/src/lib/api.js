@@ -19,8 +19,9 @@ export class ApiError extends Error {
 }
 
 /**
- * Calls a PHP endpoint in ../api relative to the app (works in sub-directories).
- * PUT/PATCH/DELETE are tunnelled through POST because some shared hosters block them.
+ * Calls an API route relative to the app, e.g. api('v1/books/12') -> api/v1/books/12
+ * (works in sub-directories). PUT/PATCH/DELETE are tunnelled through POST because some
+ * shared hosters block them.
  */
 export async function api(endpoint, { method = 'GET', query, body, form, signal } = {}) {
   const url = new URL(`api/${endpoint}`, document.baseURI)

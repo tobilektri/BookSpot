@@ -24,7 +24,7 @@ const addQuery = ref('')
 
 async function load() {
   try {
-    shelf.value = (await api('shelves.php', { query: { id: props.id } })).shelf
+    shelf.value = (await api(`v1/shelves/${props.id}`)).shelf
   } catch (e) {
     error.value = errorMessage(e)
   }

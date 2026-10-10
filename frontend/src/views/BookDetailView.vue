@@ -1,7 +1,7 @@
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen } from '@lucide/vue'
+import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle } from '@lucide/vue'
 import { api } from '../lib/api.js'
 import { t, errorMessage } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
@@ -35,7 +35,7 @@ const extendDate = ref('')
 async function load() {
   error.value = ''
   try {
-    const data = await api('books.php', { query: { id: props.id } })
+    const data = await api(`v1/books/${props.id}`)
     book.value = data.book
     offlineCopy.value = !store.online
   } catch (e) {
@@ -48,7 +48,12 @@ async function load() {
     }
   }
   if (book.value) resetPersonal()
+  // Bulk scan placeholder: show the title as soon as the metadata queue found it.
+  clearTimeout(pendingTimer)
+  if (book.value?.metadata_status === 'pending' && !dirty.value) pendingTimer = setTimeout(load, 4000)
 }
+let pendingTimer = null
+onUnmounted(() => clearTimeout(pendingTimer))
 
 function resetPersonal() {
   const p = book.value.personal ?? {}
@@ -94,7 +99,7 @@ const saveDetails = () =>
 
 async function updateBook(data, message = t('common.saved')) {
   try {
-    const result = await api('books.php', { method: 'PUT', query: { id: book.value.id }, body: data })
+    const result = await api(`v1/books/${book.value.id}`, { method: 'PUT', body: data })
     book.value = result.book
     patchBook(result.book)
     toast(message, 'success')
@@ -149,7 +154,7 @@ async function extend() {
 async function remove() {
   if (!confirm(t('book.deleteConfirm', { title: book.value.title }))) return
   try {
-    await api('books.php', { method: 'DELETE', query: { id: book.value.id } })
+    await api(`v1/books/${book.value.id}`, { method: 'DELETE' })
     removeBook(book.value.id)
     invalidateShelves()
     toast(t('book.deleted'), 'success')
@@ -192,6 +197,11 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
         <div class="min-w-0 flex-1">
           <h1 class="font-serif text-2xl leading-tight font-semibold">{{ book.title }}</h1>
           <p class="mt-1 text-stone-600 dark:text-stone-400">{{ book.authors || t('common.unknownAuthor') }}</p>
+          <p v-if="book.metadata_status === 'pending'" class="mt-2 flex items-center gap-1.5 text-sm text-stone-500"><Loader2 class="h-4 w-4 animate-spin" />{{ t('book.metadataPending') }}</p>
+          <p v-else-if="book.metadata_status === 'failed'" class="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+            <AlertTriangle class="h-4 w-4" />{{ t('book.metadataFailed') }}
+            <RouterLink :to="`/books/${book.id}/edit`" class="font-medium underline">{{ t('batch.fillIn') }}</RouterLink>
+          </p>
           <div class="mt-2 flex flex-wrap gap-2 text-xs">
             <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ t(`entry.${book.entry_type}`) }}</span>
             <span v-if="book.genre" class="rounded-full bg-stone-200 px-2 py-0.5 dark:bg-stone-800">{{ book.genre }}</span>

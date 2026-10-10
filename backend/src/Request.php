@@ -6,6 +6,12 @@ namespace BookSpot;
 
 final class Request
 {
+    /** @var array<string, string> path parameters of the matched route, e.g. ['id' => '12'] */
+    public array $params = [];
+
+    /** @var array<string, mixed> values set by middleware, e.g. 'user' and 'route' */
+    public array $attributes = [];
+
     /**
      * @param array<string, mixed> $query
      * @param array<string, mixed> $body
@@ -19,10 +25,15 @@ final class Request
         public readonly array $files = [],
         public readonly array $headers = [],
         public readonly string $ip = '0.0.0.0',
+        public readonly string $path = '/',
     ) {
     }
 
-    public static function fromGlobals(): self
+    /**
+     * @param string|null $route fixed route path (legacy endpoint files); otherwise taken from
+     *                           ?_route= (set by the rewrite rules), PATH_INFO or the request URI
+     */
+    public static function fromGlobals(?string $route = null): self
     {
         $headers = [];
         foreach ($_SERVER as $key => $value) {
@@ -56,7 +67,46 @@ final class Request
             $body = $_POST;
         }
 
-        return new self($method, $_GET, $body, $_FILES, $headers, (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'));
+        $query = $_GET;
+        $path = $route ?? self::pathFromGlobals($query);
+        unset($query['_route']);
+
+        return new self($method, $query, $body, $_FILES, $headers, (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'), $path);
+    }
+
+    /**
+     * Route path relative to the API directory, e.g. "/v1/books/12".
+     * Works with and without URL rewriting and in sub-directories.
+     *
+     * @param array<string, mixed> $query
+     */
+    private static function pathFromGlobals(array $query): string
+    {
+        if (is_string($query['_route'] ?? null)) {
+            return self::cleanPath($query['_route']);
+        }
+        if (!empty($_SERVER['PATH_INFO'])) {
+            return self::cleanPath((string) $_SERVER['PATH_INFO']); // api/index.php/v1/books
+        }
+        $uri = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+        $base = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/'))), '/');
+        if ($base !== '' && str_starts_with($uri, $base . '/')) {
+            $uri = substr($uri, strlen($base));
+        }
+        return self::cleanPath(preg_replace('#^/index\.php#', '', $uri) ?? $uri);
+    }
+
+    private static function cleanPath(string $path): string
+    {
+        $path = '/' . trim(rawurldecode($path), '/');
+        return preg_replace('#/+#', '/', $path) ?? $path;
+    }
+
+    /** Path parameter of the matched route as a positive integer. */
+    public function paramInt(string $key): ?int
+    {
+        $value = $this->params[$key] ?? null;
+        return is_string($value) && ctype_digit($value) && (int) $value > 0 ? (int) $value : null;
     }
 
     public function query(string $key, mixed $default = null): mixed

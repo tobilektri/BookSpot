@@ -42,7 +42,7 @@ const leaving = ref(false)
 async function stopImpersonation() {
   leaving.value = true
   try {
-    await switchIdentity(() => api('auth.php', { method: 'POST', query: { action: 'stop_impersonation' } }), '#/settings#users')
+    await switchIdentity(() => api('v1/auth/impersonation/stop', { method: 'POST' }), '#/settings#users')
   } catch (e) {
     leaving.value = false
     toast(errorMessage(e), 'error')

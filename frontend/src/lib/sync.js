@@ -2,11 +2,12 @@ import { api, ApiError } from './api.js'
 import { db } from './db.js'
 import { store, toast } from './store.js'
 import { t } from './i18n.js'
+import { flushScans } from './batch.js'
 
 /**
  * Offline-first writes for personal reading data and book moves.
  * Online: sent directly. Offline (or network error): stored in the Dexie
- * queue and replayed in order via api/sync.php when the connection returns.
+ * queue and replayed in order via api/v1/sync when the connection returns.
  */
 
 async function patchCachedBook(bookId, personalPatch, bookPatch = {}) {
@@ -38,7 +39,7 @@ async function enqueue(op) {
 export async function savePersonal(bookId, data) {
   if (store.online) {
     try {
-      const result = await api('user_books.php', { method: 'PUT', query: { book_id: bookId }, body: data })
+      const result = await api(`v1/books/${bookId}/personal`, { method: 'PUT', body: data })
       await patchCachedBook(bookId, result.personal)
       return { personal: result.personal, queued: false }
     } catch (e) {
@@ -55,7 +56,7 @@ export async function moveBooks(bookIds, shelfId, col, row) {
   const body = { ids: bookIds, shelf_id: shelfId, shelf_col: col, shelf_row: row }
   if (store.online) {
     try {
-      return { ...(await api('books.php', { method: 'POST', query: { action: 'move' }, body })), queued: false }
+      return { ...(await api('v1/books/move', { method: 'POST', body })), queued: false }
     } catch (e) {
       if (!(e instanceof ApiError) || !e.offline) throw e
     }
@@ -76,7 +77,7 @@ export function flushQueue() {
       if (!ops.length || !store.user) return
       store.syncing = true
       const payload = ops.map(({ seq, ...op }) => op)
-      const result = await api('sync.php', { method: 'POST', body: { ops: payload } })
+      const result = await api('v1/sync', { method: 'POST', body: { ops: payload } })
       const conflicts = result.results.filter((r) => r.status === 'conflict').length
       const errors = result.results.filter((r) => r.status === 'error').length
       await db.queue.bulkDelete(ops.map((o) => o.seq))
@@ -109,6 +110,7 @@ export function initSync() {
   window.addEventListener('online', () => {
     store.online = true
     flushQueue()
+    flushScans()
   })
   window.addEventListener('offline', () => {
     store.online = false
@@ -118,7 +120,14 @@ export function initSync() {
     if (event.data?.type === 'bookspot-sync') flushQueue()
   })
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && store.online) flushQueue()
+    if (document.visibilityState === 'visible' && store.online) {
+      flushQueue()
+      flushScans()
+    }
   })
-  setInterval(() => store.online && store.pendingOps && flushQueue(), 60_000)
+  setInterval(() => {
+    if (!store.online) return
+    if (store.pendingOps) flushQueue()
+    flushScans()
+  }, 60_000)
 }

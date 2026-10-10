@@ -453,6 +453,8 @@ final class BookService
             'lent_to' => $row['lent_to'],
             'lent_at' => $row['lent_at'],
             'status' => $row['status'],
+            // Bulk scan placeholders: 'pending' while the queue looks up metadata, 'failed' when nothing was found.
+            'metadata_status' => $row['metadata_status'] ?? null,
             'created_at' => $row['created_at'],
             'updated_at' => $row['updated_at'],
             'personal' => [

@@ -3,6 +3,7 @@ import { store } from './store.js'
 import { setLocale } from './i18n.js'
 import { db } from './db.js'
 import { flushQueue } from './sync.js'
+import { loadScans, resetScans } from './batch.js'
 
 /** Loads auth status once at app start (works offline via the SW cache). */
 export async function bootstrap() {
@@ -15,12 +16,15 @@ export async function bootstrap() {
   } finally {
     store.ready = true
   }
-  if (store.user) flushQueue()
+  if (store.user) {
+    flushQueue()
+    loadScans() // sends bulk scans recorded offline
+  }
 }
 
 /** Fetches the auth status (also used by the login page to detect a fresh/emptied database). */
 export async function refreshStatus() {
-  const status = await api('auth.php', { query: { action: 'status' } })
+  const status = await api('v1/auth/status')
   // The server no longer knows this session (logged out elsewhere, account deleted,
   // database emptied): drop locally cached data of the previous user.
   if (!status.user && lastKnownUser()) await clearLocalData()
@@ -62,7 +66,7 @@ export function rememberUser(user) {
 }
 
 export async function logout() {
-  await api('auth.php', { method: 'POST', query: { action: 'logout' } }).catch(() => {})
+  await api('v1/auth/logout', { method: 'POST' }).catch(() => {})
   rememberUser(null)
   await clearLocalData()
 }
@@ -86,6 +90,7 @@ export async function clearLocalData() {
     await db.books.clear()
     await db.queue.clear()
     await db.meta.clear()
+    await resetScans()
   } catch {
     /* ignore */
   }

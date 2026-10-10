@@ -40,13 +40,13 @@ export async function refreshPushState() {
   pushState.supported = pushSupported()
   if (typeof Notification !== 'undefined') pushState.permission = Notification.permission
   try {
-    const info = await api('push.php')
+    const info = await api('v1/push')
     pushState.serverAvailable = Boolean(info.available && info.public_key)
     pushState.publicKey = info.public_key
     const subscription = await currentSubscription()
     pushState.subscribed = Boolean(subscription) && pushState.permission === 'granted'
     if (pushState.subscribed) {
-      await api('push.php', { method: 'POST', query: { action: 'subscribe' }, body: subscription.toJSON() }).catch(() => {})
+      await api('v1/push/subscriptions', { method: 'POST', body: subscription.toJSON() }).catch(() => {})
     }
   } catch {
     // offline: keep the last known state
@@ -70,7 +70,7 @@ export async function enablePush() {
   if (!subscription) {
     subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(pushState.publicKey) })
   }
-  await api('push.php', { method: 'POST', query: { action: 'subscribe' }, body: subscription.toJSON() })
+  await api('v1/push/subscriptions', { method: 'POST', body: subscription.toJSON() })
   pushState.subscribed = true
   return subscription
 }
@@ -78,7 +78,7 @@ export async function enablePush() {
 export async function disablePush() {
   const subscription = await currentSubscription()
   if (subscription) {
-    await api('push.php', { method: 'POST', query: { action: 'unsubscribe' }, body: { endpoint: subscription.endpoint } }).catch(() => {})
+    await api('v1/push/subscriptions', { method: 'DELETE', body: { endpoint: subscription.endpoint } }).catch(() => {})
     await subscription.unsubscribe()
   }
   pushState.subscribed = false

@@ -23,7 +23,7 @@ async function run(dryRun) {
   form.append('dry_run', dryRun ? '1' : '0')
   for (const [key, value] of Object.entries(options)) form.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : value)
   try {
-    result.value = await api('import.php', { method: 'POST', form })
+    result.value = await api('v1/import', { method: 'POST', form })
     if (!dryRun) {
       toast(t('settings.summary', result.value), 'success', 6000)
       invalidateShelves()

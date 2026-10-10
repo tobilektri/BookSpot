@@ -29,7 +29,7 @@ onMounted(async () => {
 async function saveProfile() {
   errors.value = {}
   try {
-    const { user } = await api('auth.php', { method: 'POST', query: { action: 'profile' }, body: profile })
+    const { user } = await api('v1/auth/profile', { method: 'PUT', body: profile })
     rememberUser(user)
     setLocale(user.locale)
     profile.current_password = ''
@@ -44,7 +44,7 @@ async function saveProfile() {
 async function saveLibrary() {
   libraryErrors.value = {}
   try {
-    const { user } = await api('auth.php', { method: 'POST', query: { action: 'profile' }, body: { ...library } })
+    const { user } = await api('v1/auth/profile', { method: 'PUT', body: { ...library } })
     rememberUser(user)
     library.library_name = user.library_name ?? ''
     library.library_loan_days = user.library_loan_days ?? ''
@@ -60,7 +60,7 @@ async function doLogout() {
   router.replace('/login')
 }
 
-const exportUrl = new URL('api/export.php', document.baseURI).href
+const exportUrl = new URL('api/v1/export', document.baseURI).href
 </script>
 
 <template>

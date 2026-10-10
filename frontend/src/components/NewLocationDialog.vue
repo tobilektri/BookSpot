@@ -79,7 +79,7 @@ async function createCompartment() {
     col = comp.column + 1
   }
   const row = columns[col - 1].rows.length
-  await save(() => api('shelves.php', { method: 'PUT', query: { id: shelf.id }, body: { columns } }), { shelf_id: shelf.id, shelf_col: col, shelf_row: row })
+  await save(() => api(`v1/shelves/${shelf.id}`, { method: 'PUT', body: { columns } }), { shelf_id: shelf.id, shelf_col: col, shelf_row: row })
 }
 
 // ---- new shelf
@@ -90,7 +90,7 @@ async function createShelf() {
   const columns = Array.from({ length: shelfForm.columns }, () => shelfForm.rows) // compact form: [4, 4] -> A1…A4, B1…B4
   let created = null
   await save(async () => {
-    const result = await api('shelves.php', { method: 'POST', body: { name: shelfForm.name, room: shelfForm.room, columns } })
+    const result = await api('v1/shelves', { method: 'POST', body: { name: shelfForm.name, room: shelfForm.room, columns } })
     created = result.shelf
     return result
   }, () => ({ shelf_id: created.id, shelf_col: 1, shelf_row: 1 }))

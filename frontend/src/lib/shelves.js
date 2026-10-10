@@ -9,7 +9,7 @@ let loaded = false
 export async function loadShelves({ force = false } = {}) {
   if (loaded && !force) return shelves.value
   try {
-    const data = await api('shelves.php')
+    const data = await api('v1/shelves')
     shelves.value = data.items
     loaded = true
     await setMeta('shelves', data.items)

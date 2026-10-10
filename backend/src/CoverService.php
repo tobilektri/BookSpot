@@ -27,8 +27,14 @@ final class CoverService
     /** @var (callable(string): array{status: int, body: ?string})|null test double */
     private $httpGet;
 
-    public function __construct(private readonly Database $db, ?callable $httpGet = null)
+    /** Longest wait for a free slot of a rate-limited source; cron allows more than a page view. */
+    public float $maxWait = 2.0;
+
+    private RateLimiter $limiter;
+
+    public function __construct(private readonly Database $db, ?callable $httpGet = null, ?RateLimiter $limiter = null)
     {
+        $this->limiter = $limiter ?? new RateLimiter();
         $this->httpGet = $httpGet;
     }
 
@@ -83,7 +89,19 @@ final class CoverService
         $transient = false;
         $stored = null;
         foreach (self::candidates($book) as $url) {
+            $provider = self::rateLimitedProvider($url);
+            if ($provider !== null && !$this->limiter->throttle($provider, RateLimiter::providerInterval($provider), $this->maxWait)) {
+                $transient = true; // provider busy or blocked after a rate limit: retry later
+                continue;
+            }
             $response = $this->download($url);
+            if ($provider !== null) {
+                if ($response['status'] === 429 || $response['status'] === 403) {
+                    $this->limiter->penalize($provider);
+                } elseif ($response['status'] === 200) {
+                    $this->limiter->recover($provider);
+                }
+            }
             if ($response['status'] === 200 && $response['body'] !== null) {
                 $stored = $this->store((int) $book['id'], $response['body']);
                 if ($stored !== null) {
@@ -168,6 +186,12 @@ final class CoverService
             $urls[] = 'https://covers.openlibrary.org/b/isbn/' . $book['isbn13'] . '-L.jpg?default=false';
         }
         return array_values(array_unique($urls));
+    }
+
+    /** Open Library allows only 100 cover requests by ISBN per 5 minutes and IP (covers by ID are not limited). */
+    private static function rateLimitedProvider(string $url): ?string
+    {
+        return preg_match('#^https://covers\.openlibrary\.org/b/(isbn|olid)/#', $url) ? 'open_library_covers' : null;
     }
 
     /** Network errors, rate limits and server errors are worth retrying; Open Library rate-limits with 403. */
