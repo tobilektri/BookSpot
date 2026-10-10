@@ -1,19 +1,21 @@
-# Google Books API-Key anlegen (kostenlos)
+# Creating a Google Books API key (free)
 
-SchmökerSpot fragt Buchdaten in dieser Reihenfolge ab; spätere Quellen füllen nur noch leere Felder:
+**English** · [Deutsch](de/google-books-api-key.md) · [← README](../README.md)
 
-1. **Open Library** – Cover, oft nur Titel und Verlag.
-2. **Deutsche Nationalbibliothek (DNB)** – kostenlos, ohne Key, sehr vollständig für
-   deutschsprachige Ausgaben (Autor, Seitenzahl, Jahr, Verlag, Schlagworte, Klappentext).
-   Abschaltbar mit `METADATA_DNB=false`.
-3. **Google Books** – für alles, was dann noch fehlt (v. a. englische Titel und Beschreibungen).
+BookSpot asks these sources in order; later sources only fill fields that are still empty:
 
-Google Books ist damit optional, aber für fremdsprachige Bücher hilfreich.
+1. **Open Library** – covers, often only title and publisher.
+2. **German National Library (DNB)** – free, no key, very complete for German-language editions
+   (author, pages, year, publisher, subjects, blurb). Can be switched off with `METADATA_DNB=false`.
+3. **Google Books** – for everything still missing (especially English titles and descriptions).
 
-## Warum ein eigener Key nötig ist
+Google Books is therefore optional, but helpful for books in other languages. More about the sources:
+[metadata.md](metadata.md).
 
-Anfragen **ohne** API-Key laufen über ein von Google geteiltes Kontingent, das inzwischen auf
-`0` steht. Die Antwort ist dann immer:
+## Why you need your own key
+
+Requests **without** an API key use a quota shared by everybody, which is now set to `0`. The answer
+is always:
 
 ```json
 { "error": { "code": 429, "status": "RESOURCE_EXHAUSTED",
@@ -21,75 +23,76 @@ Anfragen **ohne** API-Key laufen über ein von Google geteiltes Kontingent, das 
   "details": [{ "metadata": { "quota_limit": "defaultPerDayPerProject", "quota_limit_value": "0" } }] } }
 ```
 
-Mit einem eigenen Key bekommt dein Projekt ein eigenes, **kostenloses Tageskontingent**
-(standardmäßig 1.000 Anfragen pro Tag – den aktuellen Wert siehst du in der Cloud Console unter
-*Kontingente*). Die Books API ist kostenlos; ein Rechnungskonto (Kreditkarte) ist dafür nicht
-erforderlich.
+With your own key your project gets its own **free daily quota** (1,000 requests per day by default –
+the current value is shown in the Cloud Console under *Quotas*). The Books API is free; no billing
+account (credit card) is needed.
 
-## Schritt für Schritt
+## Step by step
 
-1. **Google Cloud Console öffnen**: <https://console.cloud.google.com/> – mit einem beliebigen
-   Google-Konto anmelden und ggf. den Nutzungsbedingungen zustimmen.
-2. **Projekt anlegen**: oben links auf die Projektauswahl → *Neues Projekt* → Name z. B.
-   `SchmoekerSpot` → *Erstellen*. Danach sicherstellen, dass dieses Projekt ausgewählt ist.
-3. **Books API aktivieren**: Menü ☰ → *APIs & Dienste* → *Bibliothek* → nach **„Books API“**
-   suchen → *Aktivieren*.
-   (Direktlink: <https://console.cloud.google.com/apis/library/books.googleapis.com>)
-4. **API-Key erstellen**: *APIs & Dienste* → *Anmeldedaten* → *Anmeldedaten erstellen* →
-   **API-Schlüssel**. Den angezeigten Schlüssel (beginnt mit `AIza…`) kopieren.
-5. **Key einschränken** (dringend empfohlen) – in der Liste auf den neuen Schlüssel klicken:
-   - **API-Einschränkungen** → *Schlüssel einschränken* → nur **Books API** auswählen.
-   - **Anwendungseinschränkungen**: Die Abfragen kommen vom Server (PHP), nicht aus dem Browser.
-     „HTTP-Verweis-URLs (Websites)“ funktioniert daher **nicht**.
-     - Hat dein Server eine feste ausgehende IP (VPS, Docker-Host): **IP-Adressen** wählen und
-       diese IP eintragen.
-     - Auf Shared Hosting (z. B. Lima-City) kann sich die ausgehende IP ändern – dann *Keine*
-       lassen und nur die API-Einschränkung nutzen.
-   - *Speichern*. Änderungen können einige Minuten dauern.
-6. **In SchmökerSpot eintragen** – in der `.env` im Projektordner:
+1. **Open the Google Cloud Console**: <https://console.cloud.google.com/> – sign in with any Google
+   account and accept the terms if asked.
+2. **Create a project**: project picker at the top left → *New project* → name e.g. `BookSpot` →
+   *Create*. Make sure the new project is selected afterwards.
+3. **Enable the Books API**: menu ☰ → *APIs & Services* → *Library* → search **“Books API”** → *Enable*.
+   (Direct link: <https://console.cloud.google.com/apis/library/books.googleapis.com>)
+4. **Create an API key**: *APIs & Services* → *Credentials* → *Create credentials* → **API key**.
+   Copy the key (it starts with `AIza…`).
+5. **Restrict the key** (strongly recommended) – click the new key in the list:
+   - **API restrictions** → *Restrict key* → select only **Books API**.
+   - **Application restrictions**: the requests come from your server (PHP), not from the browser,
+     so “HTTP referrers (websites)” does **not** work.
+     - Server with a fixed outgoing IP (VPS, Docker host): choose **IP addresses** and enter it.
+     - On shared hosting (e.g. [Lima-City](https://www.lima-city.de/?cref=253166) *(referral link¹)*)
+       the outgoing IP can change – leave *None* and rely on the API restriction.
+   - *Save*. Changes can take a few minutes.
+6. **Add it to BookSpot** – in `.env` in the project folder:
 
    ```dotenv
-   GOOGLE_BOOKS_API_KEY=AIza...dein-schluessel
+   GOOGLE_BOOKS_API_KEY=AIza...your-key
    ```
 
-   Bei Docker die Variable in der `.env` neben der `docker-compose.yml` setzen und die Container
-   neu starten: `docker compose up -d`.
+   With Docker set the variable in the `.env` next to `docker-compose.yml` and restart:
+   `docker compose up -d`.
 
-## Testen
+## Testing
 
-Im Browser oder Terminal (Schlüssel einsetzen):
+In the browser or terminal (insert your key):
 
 ```
 https://www.googleapis.com/books/v1/volumes?q=isbn:9783548283951&key=AIza...
 ```
 
-Kommt ein JSON mit `"items": [...]` zurück, funktioniert der Key. In SchmökerSpot: *Buch anlegen*
-→ ISBN eingeben → *Daten abrufen*, oder unter *Einstellungen → Metadaten ergänzen*.
+JSON with `"items": [...]` means the key works. In BookSpot: *Add book* → enter an ISBN → *Fetch data*,
+or the *Fill in now* button that appears when books are missing covers or descriptions.
 
-| Antwort | Bedeutung |
+| Answer | Meaning |
 |---|---|
-| `429` mit `quota_limit_value: "0"` | Key fehlt oder wird nicht mitgeschickt (`.env` prüfen) |
-| `429` mit Wert > 0 | Tageskontingent verbraucht – am nächsten Tag geht es weiter |
-| `403` `API_KEY_SERVICE_BLOCKED` / `accessNotConfigured` | Books API im Projekt nicht aktiviert (Schritt 3) |
-| `403` `API_KEY_IP_ADDRESS_BLOCKED` | IP-Einschränkung passt nicht zur Server-IP (Schritt 5) |
-| `400` `API key not valid` | Schlüssel falsch kopiert |
-| `200` mit `"totalItems": 0` | Key funktioniert, Google kennt diese Ausgabe nur nicht (bei deutschen Taschenbüchern häufig – dann helfen Open Library und DNB) |
+| `429` with `quota_limit_value: "0"` | key missing or not sent (check `.env`) |
+| `429` with a value > 0 | daily quota used up – continues tomorrow |
+| `403` `API_KEY_SERVICE_BLOCKED` / `accessNotConfigured` | Books API not enabled in the project (step 3) |
+| `403` `API_KEY_IP_ADDRESS_BLOCKED` | IP restriction does not match the server IP (step 5) |
+| `400` `API key not valid` | key copied incorrectly |
+| `200` with `"totalItems": 0` | key works, Google just doesn't know this edition (common for German paperbacks – Open Library and DNB help there) |
 
-## Wie viele Anfragen braucht SchmökerSpot?
+## How many requests does BookSpot need?
 
-- **Scannen / Anlegen**: höchstens 1 Anfrage pro Buch – nur wenn Open Library und DNB nicht
-  alle Felder liefern.
-- **Metadaten ergänzen** nach einem CSV-Import: höchstens 1 Anfrage pro Buch. Eine Sammlung mit
-  500 Büchern passt also in das Tageskontingent.
-- **Cron**: ergänzt höchstens `CRON_ENRICH_BATCH` (Standard 20) Bücher pro Lauf, bei stündlichem
-  Cron also maximal 480 pro Tag.
+- **Scanning / adding**: at most 1 request per book – only when Open Library and DNB don't provide every field.
+- **Filling in book data** after a CSV import: at most 1 request per book, so a collection of 500 books fits into the daily quota.
+- **Cron**: fills in at most `CRON_ENRICH_BATCH` (default 20) books per run.
+- **Batch scanning**: every new ISBN is looked up once via the queue.
+- All sources are throttled (Google Books 5 requests per second by default, `RATE_LIMIT_GOOGLE_BOOKS`).
+  If Google answers 429, BookSpot pauses the source (Retry-After, otherwise 1, 2, 4 … 60 minutes) and
+  uses the others in the meantime.
 
-Ist eine Quelle nicht erreichbar oder das Kontingent erschöpft, übernimmt SchmökerSpot die Daten
-der übrigen Quellen und versucht die fehlenden Felder später erneut (alle 6 Stunden, maximal 3 Versuche).
-Bereits vorhandene Angaben werden nie überschrieben.
+If a source is unreachable or the quota is exhausted, BookSpot keeps the data of the other sources
+and tries the missing fields again later. Existing data is never overwritten.
 
-## Sicherheit
+## Security
 
-- Der Schlüssel steht nur in der `.env` auf dem Server und wird nie an den Browser ausgeliefert.
-- `.env` nicht ins Git-Repository einchecken (ist in `.gitignore` eingetragen).
-- Bei Verdacht auf Missbrauch: Schlüssel in der Console unter *Anmeldedaten* neu generieren.
+- The key only lives in `.env` on the server and is never sent to the browser.
+- Don't commit `.env` to Git (it is listed in `.gitignore`).
+- If you suspect misuse: regenerate the key in the console under *Credentials*.
+
+---
+
+¹ *Referral link: if you sign up with Lima-City through this link, the maintainer may receive a commission.*

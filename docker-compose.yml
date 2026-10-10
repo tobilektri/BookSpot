@@ -30,6 +30,21 @@ services:
       MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
       INVITE_VALID_DAYS: ${INVITE_VALID_DAYS:-7}
       GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
+      # Optional – empty means the built-in default (see .env.example / docs/configuration.md)
+      SESSION_LIFETIME_DAYS: ${SESSION_LIFETIME_DAYS:-}
+      METADATA_DNB: ${METADATA_DNB:-}
+      CRON_ENRICH_METADATA: ${CRON_ENRICH_METADATA:-}
+      CRON_ENRICH_BATCH: ${CRON_ENRICH_BATCH:-}
+      CRON_COVER_BATCH: ${CRON_COVER_BATCH:-}
+      CRON_QUEUE_BATCH: ${CRON_QUEUE_BATCH:-}
+      COVER_ALLOW_PRIVATE_HOSTS: ${COVER_ALLOW_PRIVATE_HOSTS:-}
+      RATE_LIMIT_OPEN_LIBRARY: ${RATE_LIMIT_OPEN_LIBRARY:-}
+      RATE_LIMIT_DNB: ${RATE_LIMIT_DNB:-}
+      RATE_LIMIT_GOOGLE_BOOKS: ${RATE_LIMIT_GOOGLE_BOOKS:-}
+      RATE_LIMIT_OPEN_LIBRARY_COVERS: ${RATE_LIMIT_OPEN_LIBRARY_COVERS:-}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      IMPORT_GENRE_BLOCKLIST: ${IMPORT_GENRE_BLOCKLIST:-}
     volumes:
       - app_var:/var/www/html/var
     depends_on:
@@ -52,7 +67,7 @@ services:
     volumes:
       - app_var:/var/www/html/var
     user: www-data
-    command: ["sh", "-c", "while true; do php backend/bin/cron.php; sleep 3600; done"]
+    command: ["sh", "-c", "while true; do php backend/bin/cron.php; sleep 600; done"]
     depends_on:
       app: { condition: service_started }
 

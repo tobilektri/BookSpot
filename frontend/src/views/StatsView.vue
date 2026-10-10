@@ -208,8 +208,8 @@ const maxAuthor = computed(() => Math.max(1, ...(stats.value?.top_authors ?? [])
           <div>
             <h2 class="section-title">{{ t('stats.pace') }}</h2>
             <dl class="grid grid-cols-2 gap-3 text-sm">
-              <div><dt class="text-xs text-stone-500">{{ t('stats.avgDays') }}</dt><dd class="text-xl font-semibold">{{ stats.pace.avg_days_per_book ?? '–' }}</dd></div>
-              <div><dt class="text-xs text-stone-500">{{ t('stats.pagesPerDay') }}</dt><dd class="text-xl font-semibold">{{ stats.pace.pages_per_day ?? '–' }}</dd></div>
+              <div><dt class="text-xs text-stone-500">{{ t('stats.avgDays') }}</dt><dd class="text-xl font-semibold">{{ stats.pace.avg_days_per_book == null ? '–' : formatNumber(stats.pace.avg_days_per_book, 1) }}</dd></div>
+              <div><dt class="text-xs text-stone-500">{{ t('stats.pagesPerDay') }}</dt><dd class="text-xl font-semibold">{{ stats.pace.pages_per_day == null ? '–' : formatNumber(stats.pace.pages_per_day) }}</dd></div>
             </dl>
           </div>
           <div>
