@@ -364,29 +364,10 @@ final class MetadataService
                 $partials++;
             }
             if ($meta !== null) {
-                $fields = 0;
-                foreach (['publisher', 'published_year', 'genre', 'language', 'description', 'cover_url'] as $field) {
-                    if (empty($book[$field]) && !empty($meta[$field])) {
-                        $changes[$field] = is_string($meta[$field]) ? mb_substr($meta[$field], 0, $field === 'description' ? 20000 : ($field === 'cover_url' ? 500 : 100)) : $meta[$field];
-                        $fields++;
-                    }
-                }
-                if ((int) $book['pages'] === 0 && !empty($meta['pages'])) {
-                    $changes['pages'] = (int) $meta['pages'];
-                    $fields++;
-                }
-                if (trim((string) $book['authors']) === '' && !empty($meta['authors'])) {
-                    $changes['authors'] = mb_substr((string) $meta['authors'], 0, 255);
-                    $fields++;
-                }
-                if ($fields > 0) {
+                $fill = self::fillChanges($book, $meta);
+                if ($fill !== []) {
                     $updated++;
-                    $changes['updated_at'] = $now;
-                }
-                if (isset($changes['cover_url'])) {
-                    // New cover source: let CoverService download it (again).
-                    $changes['cover_status'] = null;
-                    $changes['cover_checked_at'] = null;
+                    $changes += $fill + ['updated_at' => $now];
                 }
             }
             $this->db->update('books', $changes, ['id' => (int) $book['id']]);
@@ -400,6 +381,44 @@ final class MetadataService
         ];
     }
 
+    /**
+     * Catalogue changes that fill empty fields of $book from looked-up metadata. With
+     * $withTitle the title is replaced too when it is still the placeholder (bulk scan).
+     *
+     * @param array<string, mixed> $book books row
+     * @param array<string, mixed> $meta result of lookup()
+     * @return array<string, mixed>
+     */
+    public static function fillChanges(array $book, array $meta, bool $withTitle = false): array
+    {
+        $changes = [];
+        $limits = ['publisher' => 150, 'published_year' => null, 'genre' => 100, 'language' => 10, 'description' => 20000, 'cover_url' => 500];
+        foreach ($limits as $field => $max) {
+            if (empty($book[$field]) && !empty($meta[$field])) {
+                $changes[$field] = is_string($meta[$field]) ? mb_substr($meta[$field], 0, $max ?? 100) : $meta[$field];
+            }
+        }
+        if ((int) ($book['pages'] ?? 0) === 0 && !empty($meta['pages'])) {
+            $changes['pages'] = (int) $meta['pages'];
+        }
+        if (trim((string) ($book['authors'] ?? '')) === '' && !empty($meta['authors'])) {
+            $changes['authors'] = mb_substr((string) $meta['authors'], 0, 255);
+        }
+        $placeholder = trim((string) ($book['title'] ?? ''));
+        if ($withTitle && !empty($meta['title']) && ($placeholder === '' || $placeholder === (string) ($book['isbn13'] ?? ''))) {
+            $changes['title'] = mb_substr((string) $meta['title'], 0, 500);
+        }
+        if (empty($book['isbn10']) && !empty($meta['isbn10'])) {
+            $changes['isbn10'] = $meta['isbn10'];
+        }
+        if (isset($changes['cover_url'])) {
+            // New cover source: let CoverService download it (again).
+            $changes['cover_status'] = null;
+            $changes['cover_checked_at'] = null;
+        }
+        return $changes;
+    }
+
     /** Books that are due for a (first or repeated) metadata lookup right now. */
     public function pendingCount(): int
     {
@@ -411,7 +430,8 @@ final class MetadataService
     private function dueCondition(): array
     {
         return [
-            'metadata_checked_at IS NULL AND isbn13 IS NOT NULL AND (metadata_attempted_at IS NULL OR metadata_attempted_at < :retry_before)',
+            // Bulk scan placeholders (metadata_status set) belong to the metadata queue.
+            'metadata_checked_at IS NULL AND metadata_status IS NULL AND isbn13 IS NOT NULL AND (metadata_attempted_at IS NULL OR metadata_attempted_at < :retry_before)',
             ['retry_before' => App::now()->modify('-' . self::RETRY_AFTER_HOURS . ' hours')->format('Y-m-d H:i:s')],
         ];
     }

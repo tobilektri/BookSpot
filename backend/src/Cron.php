@@ -16,6 +16,10 @@ final class Cron
             'started_at' => App::nowString(),
             'reminders' => (new ReminderService($db, new PushService($db)))->run(),
         ];
+        // Bulk scan placeholders first: someone is waiting for those titles.
+        $batch = new BatchImporter($db);
+        $result['queue'] = $batch->process(Config::int('CRON_QUEUE_BATCH', 30), 50.0, 5.0);
+        $batch->cleanup();
         if (Config::bool('METADATA_LOOKUP', true) && Config::bool('CRON_ENRICH_METADATA', true)) {
             $result['metadata'] = (new MetadataService($db))->enrichBatch(Config::int('CRON_ENRICH_BATCH', 20), 60.0);
         }

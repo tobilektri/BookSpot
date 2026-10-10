@@ -8,6 +8,7 @@ use BookSpot\ApiException;
 use BookSpot\Config;
 use BookSpot\Controller\AdminController;
 use BookSpot\Controller\AuthController;
+use BookSpot\Controller\BatchController;
 use BookSpot\Controller\BookController;
 use BookSpot\Controller\CoverController;
 use BookSpot\Controller\CronController;
@@ -88,6 +89,9 @@ final class Kernel
                 $r->get('/books/enrich-status', [BookController::class, 'enrichStatus']);
                 $r->post('/books/enrich', [BookController::class, 'enrich'])->middleware(new RateLimit('enrich', 20, 60));
                 $r->post('/books/move', [BookController::class, 'move']);
+                // Bulk scan: accepted at once, metadata looked up by a rate-limited queue.
+                $r->post('/books/batch', [BatchController::class, 'store'])->middleware(new RateLimit('batch', 30, 60));
+                $r->post('/books/batch/process', [BatchController::class, 'process'])->middleware(new RateLimit('batch_process', 40, 60));
                 $r->get('/books/isbn/{isbn}', [BookController::class, 'byIsbn']);
                 $r->get('/books/{id:\d+}', [BookController::class, 'show']);
                 $r->put('/books/{id:\d+}', [BookController::class, 'update']);
