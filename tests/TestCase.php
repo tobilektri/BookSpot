@@ -6,7 +6,9 @@ namespace BookSpot\Tests;
 
 use BookSpot\App;
 use BookSpot\Auth;
+use BookSpot\Config;
 use BookSpot\Database;
+use BookSpot\RateLimiter;
 use PDO;
 
 /**
@@ -17,10 +19,17 @@ use PDO;
 abstract class TestCase extends \PHPUnit\Framework\TestCase
 {
     protected Database $db;
+    private string $rateLimitDir;
 
     protected function setUp(): void
     {
         App::setNow('2026-10-09 12:00:00');
+        $this->rateLimitDir = sys_get_temp_dir() . '/bookspot-ratelimit-' . bin2hex(random_bytes(4));
+        RateLimiter::$directory = $this->rateLimitDir;
+        // Provider throttling is tested in RateLimiterTest; elsewhere it must not slow tests down.
+        foreach (['OPEN_LIBRARY', 'DNB', 'GOOGLE_BOOKS', 'OPEN_LIBRARY_COVERS'] as $provider) {
+            Config::set("RATE_LIMIT_$provider", '100000');
+        }
         $dsn = getenv('TEST_DB_DSN') ?: 'sqlite::memory:';
         $pdo = new PDO($dsn, getenv('TEST_DB_USER') ?: null, getenv('TEST_DB_PASS') ?: null);
         if (str_starts_with($dsn, 'mysql:')) {
@@ -40,6 +49,9 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         App::setNow(null);
         App::setDb(null);
         Auth::setUser(null);
+        array_map('unlink', glob($this->rateLimitDir . '/*') ?: []);
+        @rmdir($this->rateLimitDir);
+        RateLimiter::$directory = null;
     }
 
     /** @return array<string, mixed> */

@@ -20,9 +20,18 @@ final class MetadataService
     /** @var (callable(string): ?string)|null injectable HTTP client for tests */
     private $httpGet;
 
-    public function __construct(private readonly Database $db, ?callable $httpGet = null)
+    /**
+     * Longest wait in seconds for a free slot of a provider (see RateLimiter). A busy or
+     * blocked provider is skipped – the next source fills in, the book is retried later.
+     */
+    public float $maxWait = 3.0;
+
+    private RateLimiter $limiter;
+
+    public function __construct(private readonly Database $db, ?callable $httpGet = null, ?RateLimiter $limiter = null)
     {
         $this->httpGet = $httpGet;
+        $this->limiter = $limiter ?? new RateLimiter();
     }
 
     /**
@@ -81,7 +90,7 @@ final class MetadataService
     /** @return array<string, mixed>|null */
     private function openLibrary(string $isbn): ?array
     {
-        $json = $this->fetchJson('https://openlibrary.org/api/books?bibkeys=ISBN:' . $isbn . '&format=json&jscmd=data');
+        $json = $this->fetchJson('open_library', 'https://openlibrary.org/api/books?bibkeys=ISBN:' . $isbn . '&format=json&jscmd=data');
         $data = $json['ISBN:' . $isbn] ?? null;
         if (!is_array($data) || empty($data['title'])) {
             return null;
@@ -130,7 +139,7 @@ final class MetadataService
         }
         $url = 'https://services.dnb.de/sru/dnb?version=1.1&operation=searchRetrieve&maximumRecords=1&recordSchema=MARC21-xml&query='
             . rawurlencode('num=' . $isbn);
-        $xml = $this->fetchText($url, 'application/xml');
+        $xml = $this->fetchText('dnb', $url, 'application/xml');
         $record = $xml === null ? null : self::parseDnbRecord($xml);
         if ($record === null) {
             return null;
@@ -258,7 +267,7 @@ final class MetadataService
         if (!str_starts_with($url, 'https://') || !preg_match('/(^|\.)(dnb\.de|d-nb\.info)$/', $host)) {
             return null;
         }
-        $html = $this->fetchText($url, 'text/html');
+        $html = $this->fetchText('dnb', $url, 'text/html');
         return $html === null ? null : self::htmlToText($html);
     }
 
@@ -278,7 +287,7 @@ final class MetadataService
         if ($key = Config::get('GOOGLE_BOOKS_API_KEY')) {
             $url .= '&key=' . rawurlencode($key);
         }
-        $json = $this->fetchJson($url);
+        $json = $this->fetchJson('google_books', $url);
         $info = $json['items'][0]['volumeInfo'] ?? null;
         if (!is_array($info) || empty($info['title'])) {
             return null;
@@ -425,18 +434,41 @@ final class MetadataService
      * @return array<string, mixed>|null null when the service answered "nothing found"
      * @throws MetadataUnavailable on network errors, rate limits and server errors
      */
-    private function fetchJson(string $url): ?array
+    private function fetchJson(string $provider, string $url): ?array
     {
-        $body = $this->fetchText($url, 'application/json');
+        $body = $this->fetchText($provider, $url, 'application/json');
         $json = $body === null ? null : json_decode($body, true);
         return is_array($json) ? $json : null;
     }
 
-    /** @throws MetadataUnavailable */
-    private function fetchText(string $url, string $accept): ?string
+    /**
+     * Rate-limited request to a provider. 429 blocks the provider with exponential
+     * backoff (or its Retry-After), so following lookups go straight to the next source.
+     *
+     * @throws MetadataUnavailable
+     */
+    private function fetchText(string $provider, string $url, string $accept): ?string
     {
-        $body = $this->httpGet !== null ? ($this->httpGet)($url) : self::httpGet($url, $accept);
+        if (!$this->limiter->throttle($provider, RateLimiter::providerInterval($provider), $this->maxWait)) {
+            throw new MetadataUnavailable("$provider is rate limited", -1);
+        }
+        try {
+            $body = $this->httpGet !== null ? ($this->httpGet)($url) : self::httpGet($url, $accept);
+        } catch (MetadataUnavailable $e) {
+            if ($e->status === 429) {
+                $seconds = $this->limiter->penalize($provider, $e->retryAfter);
+                error_log("[BookSpot] $provider answered 429 – paused for {$seconds}s");
+            }
+            throw $e;
+        }
+        $this->limiter->recover($provider);
         return ($body === null || $body === '') ? null : $body;
+    }
+
+    /** Seconds a provider is still paused after a 429 (status display). */
+    public function providerBlockedFor(string $provider): int
+    {
+        return (int) ceil($this->limiter->blockedFor($provider));
     }
 
     public static function httpGet(string $url, string $accept = 'application/json'): ?string
@@ -452,11 +484,18 @@ final class MetadataService
                 CURLOPT_TIMEOUT => self::TIMEOUT,
                 CURLOPT_USERAGENT => $userAgent,
                 CURLOPT_HTTPHEADER => ['Accept: ' . $accept],
+                CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$retryAfter): int {
+                    if (preg_match('/^Retry-After:\s*(\d+)/i', $line, $m)) {
+                        $retryAfter = (int) $m[1];
+                    }
+                    return strlen($line);
+                },
             ]);
+            $retryAfter = null;
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             curl_close($ch);
-            return self::interpret(is_string($body) ? $body : null, $status);
+            return self::interpret(is_string($body) ? $body : null, $status, $retryAfter);
         }
         $context = stream_context_create(['http' => [
             'timeout' => self::TIMEOUT,
@@ -465,18 +504,21 @@ final class MetadataService
         ]]);
         $body = @file_get_contents($url, false, $context);
         $status = 0;
+        $retryAfter = null;
         foreach ($http_response_header ?? [] as $header) {
             if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m)) {
                 $status = (int) $m[1];
+            } elseif (preg_match('/^Retry-After:\s*(\d+)/i', $header, $m)) {
+                $retryAfter = (int) $m[1];
             }
         }
-        return self::interpret($body === false ? null : $body, $status);
+        return self::interpret($body === false ? null : $body, $status, $retryAfter);
     }
 
-    private static function interpret(?string $body, int $status): ?string
+    private static function interpret(?string $body, int $status, ?int $retryAfter = null): ?string
     {
         if ($status === 0 || $status === 429 || $status >= 500) {
-            throw new MetadataUnavailable("HTTP status $status");
+            throw new MetadataUnavailable("HTTP status $status", $status, $retryAfter);
         }
         return ($body !== null && $status >= 200 && $status < 300) ? $body : null;
     }

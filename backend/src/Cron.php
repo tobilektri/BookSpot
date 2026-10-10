@@ -20,9 +20,12 @@ final class Cron
             $result['metadata'] = (new MetadataService($db))->enrichBatch(Config::int('CRON_ENRICH_BATCH', 20), 60.0);
         }
         // Download covers ahead of time (Open Library allows ~100 ISBN lookups per 5 minutes).
-        $result['covers'] = (new CoverService($db))->prefetchBatch(Config::int('CRON_COVER_BATCH', 40), 60.0);
+        $covers = new CoverService($db);
+        $covers->maxWait = 5.0;
+        $result['covers'] = $covers->prefetchBatch(Config::int('CRON_COVER_BATCH', 40), 60.0);
         $db->run('DELETE FROM login_attempts WHERE attempted_at < ?', [App::now()->modify('-1 day')->format('Y-m-d H:i:s')]);
         $db->run('DELETE FROM notification_log WHERE due_date < ?', [App::now()->modify('-90 days')->format('Y-m-d')]);
+        RateLimiter::cleanup();
         return $result;
     }
 

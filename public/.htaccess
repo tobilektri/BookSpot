@@ -8,6 +8,9 @@ DirectoryIndex index.html
 # to public/ Apache would otherwise rewrite every request to public/public/… (404).
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # API front controller: /api/v1/… -> api/index.php (route passed explicitly, so this also
+    # works when the domain points to the project root and the root .htaccess forwards here).
+    RewriteRule ^api/(v1(?:/.*)?)$ api/index.php?_route=/$1 [L,QSA,B]
 </IfModule>
 
 <IfModule mod_mime.c>

@@ -7,6 +7,7 @@ namespace BookSpot\Tests;
 use BookSpot\App;
 use BookSpot\BookService;
 use BookSpot\CoverService;
+use BookSpot\RateLimiter;
 use BookSpot\ShelfService;
 
 final class CoverServiceTest extends TestCase
@@ -94,8 +95,13 @@ final class CoverServiceTest extends TestCase
         self::assertNull($limited->ensure($a['id']), 'not retried within the hour');
         self::assertSame(1, $calls);
 
+        // The 403 also paused Open Library covers in the rate limiter (real time) …
+        self::assertGreaterThan(0, (new RateLimiter())->blockedFor('open_library_covers'));
+
+        // … so "an hour later" needs both clocks moved forward.
         App::setNow('2026-10-09 13:30:00');
-        $ok = new CoverService($this->db, fn () => ['status' => 200, 'body' => self::png(100, 150)]);
+        $later = new RateLimiter(fn (): float => microtime(true) + 3600);
+        $ok = new CoverService($this->db, fn () => ['status' => 200, 'body' => self::png(100, 150)], $later);
         self::assertSame(['processed' => 2, 'stored' => 2, 'remaining' => 0], $ok->prefetchBatch());
     }
 
