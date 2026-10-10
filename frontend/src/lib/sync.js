@@ -2,6 +2,7 @@ import { api, ApiError } from './api.js'
 import { db } from './db.js'
 import { store, toast } from './store.js'
 import { t } from './i18n.js'
+import { flushScans } from './batch.js'
 
 /**
  * Offline-first writes for personal reading data and book moves.
@@ -109,6 +110,7 @@ export function initSync() {
   window.addEventListener('online', () => {
     store.online = true
     flushQueue()
+    flushScans()
   })
   window.addEventListener('offline', () => {
     store.online = false
@@ -118,7 +120,14 @@ export function initSync() {
     if (event.data?.type === 'bookspot-sync') flushQueue()
   })
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && store.online) flushQueue()
+    if (document.visibilityState === 'visible' && store.online) {
+      flushQueue()
+      flushScans()
+    }
   })
-  setInterval(() => store.online && store.pendingOps && flushQueue(), 60_000)
+  setInterval(() => {
+    if (!store.online) return
+    if (store.pendingOps) flushQueue()
+    flushScans()
+  }, 60_000)
 }

@@ -1,7 +1,7 @@
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen } from '@lucide/vue'
+import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle } from '@lucide/vue'
 import { api } from '../lib/api.js'
 import { t, errorMessage } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
@@ -48,7 +48,12 @@ async function load() {
     }
   }
   if (book.value) resetPersonal()
+  // Bulk scan placeholder: show the title as soon as the metadata queue found it.
+  clearTimeout(pendingTimer)
+  if (book.value?.metadata_status === 'pending' && !dirty.value) pendingTimer = setTimeout(load, 4000)
 }
+let pendingTimer = null
+onUnmounted(() => clearTimeout(pendingTimer))
 
 function resetPersonal() {
   const p = book.value.personal ?? {}
@@ -192,6 +197,11 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
         <div class="min-w-0 flex-1">
           <h1 class="font-serif text-2xl leading-tight font-semibold">{{ book.title }}</h1>
           <p class="mt-1 text-stone-600 dark:text-stone-400">{{ book.authors || t('common.unknownAuthor') }}</p>
+          <p v-if="book.metadata_status === 'pending'" class="mt-2 flex items-center gap-1.5 text-sm text-stone-500"><Loader2 class="h-4 w-4 animate-spin" />{{ t('book.metadataPending') }}</p>
+          <p v-else-if="book.metadata_status === 'failed'" class="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+            <AlertTriangle class="h-4 w-4" />{{ t('book.metadataFailed') }}
+            <RouterLink :to="`/books/${book.id}/edit`" class="font-medium underline">{{ t('batch.fillIn') }}</RouterLink>
+          </p>
           <div class="mt-2 flex flex-wrap gap-2 text-xs">
             <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ t(`entry.${book.entry_type}`) }}</span>
             <span v-if="book.genre" class="rounded-full bg-stone-200 px-2 py-0.5 dark:bg-stone-800">{{ book.genre }}</span>

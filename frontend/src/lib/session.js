@@ -3,6 +3,7 @@ import { store } from './store.js'
 import { setLocale } from './i18n.js'
 import { db } from './db.js'
 import { flushQueue } from './sync.js'
+import { loadScans, resetScans } from './batch.js'
 
 /** Loads auth status once at app start (works offline via the SW cache). */
 export async function bootstrap() {
@@ -15,7 +16,10 @@ export async function bootstrap() {
   } finally {
     store.ready = true
   }
-  if (store.user) flushQueue()
+  if (store.user) {
+    flushQueue()
+    loadScans() // sends bulk scans recorded offline
+  }
 }
 
 /** Fetches the auth status (also used by the login page to detect a fresh/emptied database). */
@@ -86,6 +90,7 @@ export async function clearLocalData() {
     await db.books.clear()
     await db.queue.clear()
     await db.meta.clear()
+    await resetScans()
   } catch {
     /* ignore */
   }

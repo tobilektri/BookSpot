@@ -56,14 +56,16 @@ final class MetadataService
         ];
         $result = [];
         $failures = 0;
+        $onlySkipped = true; // all failures were sources paused by the rate limiter (no network problem)
         foreach ($sources as $name => $source) {
             if ($result !== [] && self::missingFields($result) === []) {
                 break;
             }
             try {
                 $data = $source($isbn13) ?? [];
-            } catch (MetadataUnavailable) {
+            } catch (MetadataUnavailable $e) {
                 $failures++;
+                $onlySkipped = $onlySkipped && $e->status === -1;
                 continue;
             }
             $added = false;
@@ -79,7 +81,8 @@ final class MetadataService
         }
         if (empty($result['title'])) {
             if ($failures > 0) {
-                throw new MetadataUnavailable('Metadata services unreachable');
+                // status -1: only rate-limited sources are missing, the others answered
+                throw new MetadataUnavailable('Metadata services unreachable', $onlySkipped ? -1 : 0);
             }
             return null;
         }

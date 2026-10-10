@@ -16,6 +16,14 @@ Bibliotheks-Ausleihen mit Push-Erinnerung und Lesestatistiken.
 - **Barcode-Scan (EAN-13/ISBN)** über die Handykamera – native `BarcodeDetector`-API, ZXing als
   Fallback. Gefunden → Detailansicht mit Standort; nicht gefunden → Anlege-Dialog mit Daten aus
   **Open Library**, ergänzt durch die **Deutsche Nationalbibliothek** und **Google Books**.
+- **Stapel-Scan** zum Inventarisieren und Einsortieren: Fach wählen, dann Buch für Buch scannen
+  („Beep & weiter“, Ton/Vibration, doppelte Scans werden abgefangen). Neue Bücher landen sofort als
+  Platzhalter im Fach, die Buchdaten lädt eine Warteschlange im Hintergrund nach („Metadaten werden
+  geladen …“). Vorhandene Bücher werden gemeldet und auf Wunsch ins Fach verschoben. Funktioniert
+  auch offline – die Scans werden gesendet, sobald wieder Verbindung besteht.
+- **Rate-Limits für externe Quellen**: Open Library 1/s, DNB 2/s, Google Books 5/s, Cover per ISBN
+  1 alle 3 s (anpassbar in `.env`). Antwortet eine Quelle mit 429, wird sie pausiert (Retry-After
+  bzw. 1, 2, 4 … 60 min) und die nächste Quelle genutzt – auch bei 50+ Scans in Folge.
 - **Asymmetrische Regale**: Regal → Spalten → beliebig viele Fächer pro Spalte, Fächer mit Namen
   (z. B. `L2`). Visuelle Regalansicht mit Buchrücken, Drag & Drop, Mehrfachauswahl „Verschieben nach…“.
 - **Bookstats-CSV-Import** (auch Goodreads/generische CSVs): Duplikaterkennung per ISBN,
@@ -190,6 +198,8 @@ umgeleitet; ohne URL-Rewriting funktioniert dieselbe Route als `api/index.php/v1
 | `GET /api/v1/books/isbn/{isbn}` | Katalog-Suche per ISBN (`{found, book}`) |
 | `GET /api/v1/books/due` · `genres` · `enrich-status` · `POST …/enrich` · `POST …/move` | Ausleihen, Genres, Metadaten, Verschieben |
 | `GET/PUT /api/v1/books/{id}/personal` | persönliche Lesedaten |
+| `POST /api/v1/books/batch` | Stapel-Scan: `{shelf_id, shelf_col, shelf_row, isbns: [...]}` oder `{items: [{client_id, isbn, …}]}` → Status je ISBN (`created`, `existing`, `moved` …) |
+| `POST /api/v1/books/batch/process` | arbeitet einige Einträge der Metadaten-Warteschlange ab, `{book_ids}` → aktueller Stand |
 | `GET /api/v1/books/{id}/cover` · `GET /api/v1/covers/preview?url=\|isbn=` | Cover (lokal gespeichert) / Vorschau |
 | `GET/POST /api/v1/shelves` · `GET/PUT/DELETE /api/v1/shelves/{id}` | Regale (`columns: [{label, rows: ["L1", …]}]` oder `[4, 2, 5]`) |
 | `GET/POST /api/v1/users` · `PUT/DELETE /api/v1/users/{id}` · `POST …/{id}/invite` · `…/{id}/impersonate` | Benutzerverwaltung (Ändern nur Admins) |

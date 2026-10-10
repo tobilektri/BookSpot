@@ -158,7 +158,10 @@ final class BatchImporter
             } catch (MetadataUnavailable $e) {
                 $stats['retry']++;
                 $this->retry($entry, $e->status === -1 ? 'rate_limited' : 'unavailable');
-                break; // sources down or busy: the remaining entries wait for the next run
+                if ($e->status !== -1) {
+                    break; // network or server errors: the remaining entries wait for the next run
+                }
+                continue; // only a paused source is missing: other ISBNs may be found by the remaining ones
             } catch (ApiException) {
                 $meta = null;
             }

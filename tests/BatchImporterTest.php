@@ -178,6 +178,27 @@ final class BatchImporterTest extends TestCase
         self::assertSame(2, (new BatchImporter($this->db, $up))->process(10, 30)['completed']);
     }
 
+    public function testAPausedSourceDoesNotHoldUpTheRestOfTheQueue(): void
+    {
+        // Google Books answered 429 earlier and is paused; the first ISBN is unknown to Open Library.
+        $this->submit([self::ISBNS[0], self::ISBNS[1]]);
+        $limiter = new RateLimiter(fn (): float => $this->now, function (float $s): void {
+            $this->now += $s;
+        });
+        $limiter->penalize('google_books', 600);
+        $metadata = new MetadataService($this->db, fn (string $url) => str_contains($url, 'openlibrary') && str_contains($url, self::ISBNS[1])
+            ? self::openLibrary(self::ISBNS[1], 'Gefunden')
+            : null, $limiter);
+
+        $stats = (new BatchImporter($this->db, $metadata))->process(10, 30);
+        self::assertSame(['processed' => 2, 'completed' => 1, 'failed' => 0, 'retry' => 1, 'remaining' => 1], $stats);
+        self::assertSame(
+            ['rate_limited', 'pending'],
+            [$this->db->value('SELECT error_message FROM metadata_queue WHERE isbn = ?', [self::ISBNS[0]]), $this->db->value('SELECT metadata_status FROM books WHERE isbn13 = ?', [self::ISBNS[0]])],
+            '"not found" is not final while Google Books could not be asked'
+        );
+    }
+
     public function testStaleClaimsAreReleasedAndClaimedEntriesAreNotProcessedTwice(): void
     {
         $this->submit([self::ISBNS[0]]);
