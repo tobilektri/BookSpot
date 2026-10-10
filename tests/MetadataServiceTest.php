@@ -117,6 +117,19 @@ final class MetadataServiceTest extends TestCase
         self::assertNull(MetadataService::parseDnbRecord('not xml'));
     }
 
+    public function testParsesRealDnbRecordsWithCataloguingConventions(): void
+    {
+        $zauberer = MetadataService::parseDnbRecord((string) file_get_contents(__DIR__ . '/fixtures/dnb_9783358000571.xml'));
+        self::assertSame('Der kleine Zauberer und die große 5', $zauberer['title']);
+        self::assertSame('Uwe Kant', $zauberer['authors']);
+        self::assertSame(63, $zauberer['pages']);
+
+        $temponauten = MetadataService::parseDnbRecord((string) file_get_contents(__DIR__ . '/fixtures/dnb_9783423760508.xml'));
+        self::assertSame('Die fünf Temponauten. Treffpunkt 2321', $temponauten['title'], 'unknown volume number "[...]" is left out');
+        self::assertSame('Dt. Taschenbuch-Verlag', $temponauten['publisher']);
+        self::assertSame('https://services.dnb.de/plus/idn/1017384444/blurb/', $temponauten['blurb_url']);
+    }
+
     public function testDnbCataloguingConventionsAreRemoved(): void
     {
         $marc = fn (string $fields) => '<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><records><record><recordData>'

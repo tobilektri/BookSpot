@@ -292,7 +292,8 @@ final class MetadataService
         } elseif (str_ends_with($value, ']') && !str_contains($value, '[')) {
             $value = rtrim($value, '] ');
         }
-        return $value === '' ? null : $value;
+        // Placeholders such as "[...]" (volume number unknown) carry no information.
+        return preg_match('/[\p{L}\p{N}]/u', $value) ? $value : null;
     }
 
     /** Older DNB records abbreviate publishers: "Bergverl. Rother" -> "Bergverlag Rother". */
