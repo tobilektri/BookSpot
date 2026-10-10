@@ -24,6 +24,7 @@ final class RateLimiter
         'dnb' => 0.5,                   // RATE_LIMIT_DNB=2
         'google_books' => 0.2,          // RATE_LIMIT_GOOGLE_BOOKS=5
         'open_library_covers' => 3.0,   // covers by ISBN: Open Library allows 100 per 5 minutes and IP
+        'dnb_covers' => 0.5,            // RATE_LIMIT_DNB_COVERS=2
     ];
     private const MAX_BLOCK_SECONDS = 3600;
     private const BASE_BLOCK_SECONDS = 60;

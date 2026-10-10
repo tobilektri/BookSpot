@@ -193,12 +193,21 @@ final class MetadataService
             return $result;
         };
         $first = fn (string $tag, string $code) => $fields($tag)[0][$code][0] ?? null;
-        // MARC keeps ISBD punctuation ("Impact :", "Berlin ;"), strip it.
-        $clean = fn (?string $v) => $v === null ? null : (trim(rtrim(trim($v), ' /:;,.='), " []") ?: null);
+        $clean = self::cleanMarc(...);
 
         $title = $clean($first('245', 'a'));
         if ($title === null) {
             return null;
+        }
+        // Volume of a multi-part work: $n number, $p title of the part
+        // ("Die fünf Temponauten" $p "Treffpunkt 2321" -> "Die fünf Temponauten. Treffpunkt 2321").
+        $number = $clean($first('245', 'n'));
+        $part = $clean($first('245', 'p'));
+        if ($number !== null) {
+            $title .= '. ' . $number;
+        }
+        if ($part !== null) {
+            $title .= ($number !== null ? ', ' : '. ') . $part;
         }
         $subtitle = $clean($first('245', 'b'));
 
@@ -250,7 +259,7 @@ final class MetadataService
         return [
             'title' => $subtitle ? "$title: $subtitle" : $title,
             'authors' => implode(', ', array_unique($authors)),
-            'publisher' => $clean($imprint['b'][0] ?? null),
+            'publisher' => self::expandPublisher($clean($imprint['b'][0] ?? null)),
             'published_year' => $year,
             'pages' => $pages,
             'genre' => $genre,
@@ -259,6 +268,40 @@ final class MetadataService
             'description' => null,
             'blurb_url' => $blurb,
         ];
+    }
+
+    /**
+     * MARC values carry cataloguing conventions that don't belong in a title:
+     * ISBD punctuation ("Impact :", "Berlin ;"), non-sorting markers around
+     * articles, the spelled-out form of numbers for sorting ("Die große 5[Fünf]",
+     * "Die 3 [drei] ???") and brackets around values added by the cataloguer.
+     */
+    public static function cleanMarc(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $value = preg_replace('/[\x{0088}\x{0089}\x{0098}\x{009C}]/u', '', $value) ?? $value;
+        $value = preg_replace('/(\d)\s*\[[\p{L}\s-]+\]/u', '$1', $value) ?? $value;
+        $value = preg_replace('/(\d)\s*\[[\p{L}\s-]*$/u', '$1', $value) ?? $value; // closing bracket in the next subfield
+        $value = trim(rtrim(trim($value), ' /:;,.='));
+        if (preg_match('/^\[([^\[\]]*)\]$/u', $value, $m)) {
+            $value = trim($m[1]);
+        } elseif (str_starts_with($value, '[') && !str_contains($value, ']')) {
+            $value = ltrim($value, '[ ');
+        } elseif (str_ends_with($value, ']') && !str_contains($value, '[')) {
+            $value = rtrim($value, '] ');
+        }
+        return $value === '' ? null : $value;
+    }
+
+    /** Older DNB records abbreviate publishers: "Bergverl. Rother" -> "Bergverlag Rother". */
+    private static function expandPublisher(?string $publisher): ?string
+    {
+        if ($publisher === null) {
+            return null;
+        }
+        return preg_replace('/([vV])erl\.?(?=[\s,;)]|$)/u', '$1erlag', $publisher) ?? $publisher;
     }
 
     /** "Steinhardt, Bernd" -> "Bernd Steinhardt" */

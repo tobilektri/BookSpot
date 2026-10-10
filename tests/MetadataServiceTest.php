@@ -117,6 +117,42 @@ final class MetadataServiceTest extends TestCase
         self::assertNull(MetadataService::parseDnbRecord('not xml'));
     }
 
+    public function testDnbCataloguingConventionsAreRemoved(): void
+    {
+        $marc = fn (string $fields) => '<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><records><record><recordData>'
+            . '<record xmlns="http://www.loc.gov/MARC21/slim">' . $fields . '</record></recordData></record></records></searchRetrieveResponse>';
+        $field = function (string $tag, array $subfields): string {
+            $xml = '';
+            foreach ($subfields as [$code, $value]) {
+                $xml .= '<subfield code="' . $code . '">' . htmlspecialchars($value) . '</subfield>';
+            }
+            return '<datafield tag="' . $tag . '" ind1="1" ind2="0">' . $xml . '</datafield>';
+        };
+
+        // Spelled-out number for sorting, non-sorting markers around the article, abbreviated publisher.
+        $record = MetadataService::parseDnbRecord($marc(
+            $field('245', [['a', "\u{0098}Der\u{009C} kleine Zauberer und die große 5[Fünf]"], ['c', 'Uwe Kant']])
+            . $field('260', [['a', 'Berlin :'], ['b', 'Kinderbuchverl.,'], ['c', '1989']])
+        ));
+        self::assertSame('Der kleine Zauberer und die große 5', $record['title']);
+        self::assertSame('Kinderbuchverlag', $record['publisher']);
+
+        // Volume of a multi-part work: the part title belongs to the title.
+        $record = MetadataService::parseDnbRecord($marc(
+            $field('245', [['a', 'Die fünf Temponauten'], ['p', 'Treffpunkt 2321 /'], ['c', 'Stephen Measday']])
+            . $field('264', [['a', 'München'], ['b', 'Dt. Taschenbuch-Verl.'], ['c', '2012']])
+        ));
+        self::assertSame('Die fünf Temponauten. Treffpunkt 2321', $record['title']);
+        self::assertSame('Dt. Taschenbuch-Verlag', $record['publisher']);
+
+        $record = MetadataService::parseDnbRecord($marc($field('245', [['a', 'Die Abenteuer des Tom Sawyer'], ['n', '[1]'], ['p', 'Die Schatzsuche']])));
+        self::assertSame('Die Abenteuer des Tom Sawyer. 1, Die Schatzsuche', $record['title']);
+
+        self::assertSame('Die 3 Fragezeichen', MetadataService::cleanMarc('Die 3 [drei] Fragezeichen :'));
+        self::assertSame('Ohne Titel', MetadataService::cleanMarc('[Ohne Titel]'));
+        self::assertSame('Ein Buch [Roman]', MetadataService::cleanMarc('Ein Buch [Roman]'), 'other brackets stay');
+    }
+
     public function testDnbFillsGapsOfSparseOpenLibraryAnswer(): void
     {
         $calls = [];

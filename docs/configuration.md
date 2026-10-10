@@ -53,6 +53,7 @@ Tables are created and migrated automatically on the first request (`backend/mig
 | `METADATA_LOOKUP` | `true` | Look up book data online at all. |
 | `METADATA_DNB` | `true` | Ask the German National Library (free, no key, needs the PHP `dom` extension). |
 | `GOOGLE_BOOKS_API_KEY` | – | Your own free key – without it Google answers 429. [How to get one](google-books-api-key.md). |
+| `COVER_DNB` | `true` | Publisher covers (VLB) via the German National Library as an additional cover source. |
 | `COVER_ALLOW_PRIVATE_HOSTS` | `false` | Covers are only downloaded from public internet addresses (protection against requests to internal services). `true` only if your cover images live on a server in your own network. |
 
 ## Rate limits
@@ -65,6 +66,7 @@ See [metadata.md](metadata.md#rate-limits) for how they work.
 | `RATE_LIMIT_DNB` | `2` | Requests per second to the German National Library. |
 | `RATE_LIMIT_GOOGLE_BOOKS` | `5` | Requests per second to Google Books. |
 | `RATE_LIMIT_OPEN_LIBRARY_COVERS` | `0.33` | Open Library covers by ISBN (Open Library allows 100 per 5 minutes and IP). |
+| `RATE_LIMIT_DNB_COVERS` | `2` | Requests per second to the DNB cover service. |
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | `600` | API requests per minute and IP address (cover images don't count). `0` = off. |
 
 ## Push notifications

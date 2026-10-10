@@ -27,7 +27,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         $this->rateLimitDir = sys_get_temp_dir() . '/bookspot-ratelimit-' . bin2hex(random_bytes(4));
         RateLimiter::$directory = $this->rateLimitDir;
         // Provider throttling is tested in RateLimiterTest; elsewhere it must not slow tests down.
-        foreach (['OPEN_LIBRARY', 'DNB', 'GOOGLE_BOOKS', 'OPEN_LIBRARY_COVERS'] as $provider) {
+        foreach (['OPEN_LIBRARY', 'DNB', 'GOOGLE_BOOKS', 'OPEN_LIBRARY_COVERS', 'DNB_COVERS'] as $provider) {
             Config::set("RATE_LIMIT_$provider", '100000');
         }
         $dsn = getenv('TEST_DB_DSN') ?: 'sqlite::memory:';

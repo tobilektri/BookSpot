@@ -58,7 +58,10 @@ the other sources are used meanwhile, the rest follows later ([rate limits](meta
 [Create a free key](google-books-api-key.md).
 
 **No covers** – covers are downloaded by the server into `var/covers/` (must be writable). Open
-Library limits cover requests by ISBN to 100 per 5 minutes; the cron job catches up over time.
+Library limits cover requests by ISBN to 100 per 5 minutes; the cron job catches up over time. Since
+1.7.3 the DNB cover service is asked too; books that had no cover anywhere are tried again after the
+update. Some (especially older) editions simply have no cover at any source – add one by hand via
+*Edit → Cover URL*.
 
 ## Push notifications
 
