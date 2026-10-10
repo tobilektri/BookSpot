@@ -113,7 +113,7 @@ async function saveProgress(book) {
                 <BookCover :book="book" size="sm" />
                 <div class="min-w-0 flex-1">
                   <div class="truncate font-medium">{{ book.title }}</div>
-                  <div class="truncate text-xs text-stone-500">{{ book.loan_from || t(`entry.${book.entry_type}`) }} · {{ formatDate(book.loan_due) }}</div>
+                  <div class="truncate text-xs text-stone-500">{{ book.loan_from || t(`entry.${book.entry_type}`) }}<template v-if="book.loan_due"> · {{ formatDate(book.loan_due) }}</template></div>
                 </div>
                 <span
                   class="shrink-0 rounded-lg px-2 py-1 text-xs"

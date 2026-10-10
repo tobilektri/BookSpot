@@ -157,7 +157,7 @@ const de = {
   },
   cron: {
     title: 'Cronjob', url: 'Cron-URL', copy: 'Kopieren', copied: 'URL kopiert.',
-    hint: 'Diese URL stündlich aufrufen lassen (Cronjob des Hosters oder z. B. cron-job.org). Sie verschickt die Rückgabe-Erinnerungen und ergänzt Buchdaten.',
+    hint: 'Diese URL alle 10–15 Minuten aufrufen lassen (Cronjob des Hosters oder z. B. cron-job.org; stündlich geht auch). Sie verschickt die Rückgabe-Erinnerungen, lädt die Buchdaten gescannter Bücher und ergänzt Cover.',
     generated: 'Der Token wurde automatisch erzeugt. Alternativ kannst du CRON_TOKEN in der .env festlegen.',
     fromConfig: 'Der Token stammt aus CRON_TOKEN in der .env.', docker: 'Mit Docker oder SSH stattdessen:',
     regenerate: 'Neuen Token erzeugen', regenerated: 'Neuer Token erzeugt – Cronjob-URL beim Hoster aktualisieren!',
@@ -255,7 +255,7 @@ const de = {
       p1: 'Rolle „Admin“ darf Benutzer verwalten, „Benutzer“ nicht.', p2: 'Per Einladungs-E-Mail legt jede Person ihr Passwort selbst fest.', p3: 'Über die Maske kannst du dich zur Hilfe als jemand anderes anmelden.',
     },
     adminCron: {
-      title: 'Cronjob & Buchdaten', text: 'Damit Erinnerungen pünktlich kommen, sollte eine URL stündlich aufgerufen werden.',
+      title: 'Cronjob & Buchdaten', text: 'Damit Erinnerungen pünktlich kommen und Buchdaten nachgeladen werden, sollte eine URL regelmäßig aufgerufen werden (alle 10–15 Minuten).',
       p1: 'Die fertige Cron-URL steht unter Einstellungen → Cronjob (beim Hoster eintragen oder cron-job.org).', p2: 'Der Cronjob lädt außerdem Cover herunter und ergänzt fehlende Buchdaten.', p3: 'Optional: einen kostenlosen Google-Books-Key in der .env eintragen (siehe docs/).',
     },
     done: {
@@ -459,7 +459,7 @@ const en = {
   },
   cron: {
     title: 'Cron job', url: 'Cron URL', copy: 'Copy', copied: 'URL copied.',
-    hint: 'Have this URL called hourly (your hoster’s cron jobs or e.g. cron-job.org). It sends due-date reminders and completes book data.',
+    hint: 'Have this URL called every 10–15 minutes (your hoster’s cron jobs or e.g. cron-job.org; hourly works too). It sends due-date reminders, loads the data of scanned books and fetches covers.',
     generated: 'The token was generated automatically. Alternatively set CRON_TOKEN in .env.',
     fromConfig: 'The token comes from CRON_TOKEN in .env.', docker: 'With Docker or SSH instead:',
     regenerate: 'Generate new token', regenerated: 'New token generated – update the cron job URL at your hoster!',
@@ -557,7 +557,7 @@ const en = {
       p1: 'Role “Admin” may manage users, “User” may not.', p2: 'With an invitation email everyone chooses their own password.', p3: 'Use the mask to sign in as someone else to help them.',
     },
     adminCron: {
-      title: 'Cron job & book data', text: 'For reminders to arrive on time, a URL should be called hourly.',
+      title: 'Cron job & book data', text: 'For reminders to arrive on time and book data to be filled in, a URL should be called regularly (every 10–15 minutes).',
       p1: 'The cron URL is under Settings → Cron job (add it at your hoster or cron-job.org).', p2: 'The cron job also downloads covers and completes missing book data.', p3: 'Optional: add a free Google Books key to .env (see docs/).',
     },
     done: {
