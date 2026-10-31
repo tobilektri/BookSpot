@@ -64,7 +64,16 @@ final class BatchImporter
                 continue;
             }
 
-            $existing = $this->db->one('SELECT id, shelf_id, shelf_col, shelf_row, entry_type, status FROM books WHERE isbn13 = ?', [$isbn13]);
+            $existing = $this->db->one('SELECT id, shelf_id, shelf_col, shelf_row, entry_type, status, wishlist FROM books WHERE isbn13 = ?', [$isbn13]);
+            if ($existing !== null && !empty($existing['wishlist'])) {
+                // Was on a wishlist and is now scanned into the shelf: bought, part of the collection.
+                $id = (int) $existing['id'];
+                $seen[$isbn13] = $id;
+                $this->db->run('DELETE FROM wishes WHERE book_id = ?', [$id]);
+                $this->db->update('books', $position + ['wishlist' => 0, 'entry_type' => 'owned', 'status' => 'active', 'acquired_at' => App::today(), 'updated_at' => App::nowString()], ['id' => $id]);
+                $results[] = $result + ['status' => 'created', 'book' => $this->compact($id, $userId)];
+                continue;
+            }
             if ($existing !== null) {
                 $id = (int) $existing['id'];
                 $seen[$isbn13] = $id;

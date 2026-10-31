@@ -28,8 +28,10 @@ final class ExportService
         $rows = $this->db->all(
             "SELECT b.*, ub.reading_status, ub.rating, ub.started_at, ub.finished_at, ub.notes
              FROM books b LEFT JOIN user_books ub ON ub.book_id = b.id AND ub.user_id = ?
-             WHERE b.status <> 'discarded' ORDER BY b.title",
-            [$userId]
+             WHERE b.status <> 'discarded'
+               AND (b.wishlist = 0 OR EXISTS (SELECT 1 FROM wishes w WHERE w.book_id = b.id AND w.user_id = ?))
+             ORDER BY b.title",
+            [$userId, $userId]
         );
         $index = [];
         foreach ($this->db->all('SELECT id, columns_config FROM shelves') as $shelf) {
@@ -60,7 +62,7 @@ final class ExportService
                 (string) $row['pages'],
                 $row['format'] ?? '',
                 $row['price'] === null ? '' : number_format((float) $row['price'], 2, ',', ''),
-                $via[$row['entry_type']] ?? 'Kauf',
+                !empty($row['wishlist']) ? 'Wunschliste' : ($via[$row['entry_type']] ?? 'Kauf'),
                 $status[$row['reading_status'] ?? 'unread'] ?? 'Ungelesen',
                 $date($row['started_at']),
                 $date($row['finished_at']),

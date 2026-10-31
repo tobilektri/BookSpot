@@ -141,6 +141,11 @@ final class BookImporter
             }
             $this->seenInFile[$dedupeKey] = true;
 
+            if (self::isWish($row['acquired_via'] ?? '')) {
+                $this->importWish($book);
+                return;
+            }
+
             [$location, $locationFromNotes] = $this->resolveLocation($row);
             if ($location !== null) {
                 $book += ['shelf_id' => $location['shelf_id'], 'shelf_col' => $location['shelf_col'], 'shelf_row' => $location['shelf_row']];
@@ -242,6 +247,31 @@ final class BookImporter
             $book = array_merge($book, $this->libraryLoan($book['acquired_at']));
         }
         return $book;
+    }
+
+    /** "Erhalten als: Wunschliste" (BookSpot's export) – a wish, not part of the collection. */
+    public static function isWish(string $acquiredVia): bool
+    {
+        return (bool) preg_match('/^(wunschliste|wishlist)$/u', mb_strtolower(trim($acquiredVia)));
+    }
+
+    /** @param array<string, mixed> $book */
+    private function importWish(array $book): void
+    {
+        $existing = $this->findExisting($book);
+        if ($existing === null) {
+            $now = App::nowString();
+            $loanless = array_diff_key($book, array_flip(['loan_from', 'loan_start', 'loan_due', 'loan_user_id']));
+            $bookId = $this->db->insert('books', ['entry_type' => 'owned', 'status' => 'active', 'wishlist' => 1] + $loanless
+                + ['created_by' => $this->userId, 'created_at' => $now, 'updated_at' => $now]);
+            $this->summary['created']++;
+        } else {
+            $bookId = (int) $existing['id'];
+            $this->summary['linked']++;
+        }
+        if ($this->db->value('SELECT id FROM wishes WHERE user_id = ? AND book_id = ?', [$this->userId, $bookId]) === null) {
+            $this->db->insert('wishes', ['user_id' => $this->userId, 'book_id' => $bookId, 'created_at' => App::nowString()]);
+        }
     }
 
     /**

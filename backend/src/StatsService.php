@@ -20,7 +20,7 @@ final class StatsService
         // A book counts for the user when it is in the active catalogue, or when
         // the user has history with it (e.g. a returned library loan they read).
         $scope = "FROM books b LEFT JOIN user_books ub ON ub.book_id = b.id AND ub.user_id = :uid
-                  WHERE (b.status = 'active' OR (ub.reading_status IS NOT NULL AND ub.reading_status <> 'unread'))";
+                  WHERE b.wishlist = 0 AND (b.status = 'active' OR (ub.reading_status IS NOT NULL AND ub.reading_status <> 'unread'))";
         $status = "COALESCE(ub.reading_status, 'unread')";
         $pagesRead = "CASE WHEN ub.reading_status = 'read' AND ub.pages_read < b.pages THEN b.pages ELSE COALESCE(ub.pages_read, 0) END";
 
