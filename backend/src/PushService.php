@@ -47,7 +47,7 @@ final class PushService
         try {
             $keys = VAPID::createVapidKeys();
         } catch (\Throwable $e) {
-            error_log('[BookSpot] Could not create VAPID keys: ' . $e->getMessage());
+            App::log('[BookSpot] Could not create VAPID keys: ' . $e->getMessage());
             return null;
         }
         $this->db->insert('settings', ['name' => 'vapid_keys', 'value' => json_encode($keys)]);
@@ -132,7 +132,7 @@ final class PushService
                 $this->db->run('DELETE FROM push_subscriptions WHERE endpoint_hash = ?', [hash('sha256', $report->getEndpoint())]);
                 $result['removed']++;
             } else {
-                error_log('[BookSpot] Push failed: ' . $report->getReason());
+                App::log('[BookSpot] Push failed: ' . $report->getReason());
             }
         }
         return $result;

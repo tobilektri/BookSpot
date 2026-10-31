@@ -19,6 +19,11 @@ Check `var/error.log` (or the PHP error log of your host). Common causes: wrong 
 in `.env`, PHP older than 8.2, `var/` not writable. Temporarily setting `APP_ENV=development` adds the
 error message to API responses.
 
+**“server_error” on every ISBN lookup with PHP 8.5, `Call to undefined function …error_log()` in the log**
+Fixed in 1.7.6. Some hosts disable single PHP functions (`disable_functions` in `phpinfo()`), here
+`error_log`. BookSpot now writes to `var/error.log` itself when the function is missing, and no longer
+uses `curl_close()` and `$http_response_header`, which PHP 8.5 deprecates.
+
 **After emptying the database the login page appears instead of the setup**
 In current versions the tables are recreated automatically on the next request and the first-run
 setup appears again. Reload the page (and update if you run a very old version).

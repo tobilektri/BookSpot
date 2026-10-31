@@ -9,7 +9,7 @@ namespace BookSpot;
  */
 final class App
 {
-    public const VERSION = '1.7.5';
+    public const VERSION = '1.7.6';
 
     private static ?Database $db = null;
     private static ?string $fixedNow = null;
@@ -48,6 +48,27 @@ final class App
             @mkdir($dir, 0775, true);
         }
         return $dir;
+    }
+
+    /** Log file override (tests); by default var/error.log. */
+    public static ?string $logFile = null;
+
+    /**
+     * Writes a line to the error log. Some hosts disable error_log() via
+     * disable_functions (seen with PHP 8.5) – calling it would then be a fatal
+     * "undefined function" error, so BookSpot appends to var/error.log itself.
+     */
+    public static function log(string $message): void
+    {
+        if (self::$logFile === null && function_exists('error_log')) {
+            error_log($message);
+            return;
+        }
+        $line = '[' . date('d-M-Y H:i:s e') . '] ' . $message . PHP_EOL;
+        $file = self::$logFile ?? self::varDir() . '/error.log';
+        if (@file_put_contents($file, $line, FILE_APPEND | LOCK_EX) === false && defined('STDERR')) {
+            fwrite(STDERR, $line);
+        }
     }
 
     public static function db(): Database

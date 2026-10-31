@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BookSpot\Http\Middleware;
 
 use BookSpot\ApiException;
+use BookSpot\App;
 use BookSpot\Config;
 use BookSpot\Http\Middleware;
 use BookSpot\Http\Response;
@@ -20,7 +21,7 @@ final class ErrorHandler implements Middleware
         } catch (ApiException $e) {
             return Response::json(['error' => $e->getMessage()] + $e->details, $e->getCode() ?: 400);
         } catch (\Throwable $e) {
-            error_log('[BookSpot] ' . $e::class . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            App::log('[BookSpot] ' . $e::class . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
             $payload = ['error' => 'server_error'];
             if (Config::get('APP_ENV', 'production') === 'development') {
                 $payload['message'] = $e->getMessage();

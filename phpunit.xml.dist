@@ -3,13 +3,18 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
          colors="true"
+         displayDetailsOnTestsThatTriggerDeprecations="true"
+         failOnDeprecation="true"
+         failOnNotice="true"
+         failOnWarning="true"
          cacheDirectory="var/phpunit-cache">
     <testsuites>
         <testsuite name="BookSpot">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
-    <source>
+    <!-- Deprecations in BookSpot's own code fail the run (new PHP versions in CI), those of libraries don't. -->
+    <source ignoreIndirectDeprecations="true" restrictNotices="true" restrictWarnings="true">
         <include>
             <directory>backend/src</directory>
         </include>
