@@ -36,6 +36,15 @@ export function addDaysIso(iso, days) {
  * allows img-src 'self'). Saved books use the locally stored copy; the form
  * preview of an unsaved/changed cover is fetched through the server.
  */
+/**
+ * Sort key for "newest": when the book was received ("Erhalten am" – also from a
+ * CSV import), otherwise when it was added; ties by the time it was added.
+ */
+export function compareNewest(a, b) {
+  const day = (book) => book.acquired_at || (book.created_at ?? '').slice(0, 10)
+  return day(b).localeCompare(day(a)) || (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id
+}
+
 export function coverUrl(book) {
   if (!book) return null
   if (book.id) {
