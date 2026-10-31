@@ -20,6 +20,7 @@ use BookSpot\Controller\ShelfController;
 use BookSpot\Controller\StatsController;
 use BookSpot\Controller\SyncController;
 use BookSpot\Controller\UserController;
+use BookSpot\Controller\WishlistController;
 use BookSpot\Http\Middleware\Authenticate;
 use BookSpot\Http\Middleware\Cors;
 use BookSpot\Http\Middleware\Csrf;
@@ -73,6 +74,10 @@ final class Kernel
             $r->post('/auth/invites/accept', [AuthController::class, 'acceptInvite'])->middleware(new RateLimit('invite', 20, 60, perIp: true));
             $r->any('/cron', [CronController::class, 'run'])->withoutCsrf()->middleware(new RateLimit('cron', 30, 60, perIp: true));
 
+            // Wishlists shared by link: no sign-in, only bibliographic data.
+            $r->get('/public/wishlists/{token}', [WishlistController::class, 'public'])->middleware(new RateLimit('public_wishlist', 60, 60, perIp: true));
+            $r->get('/public/wishlists/{token}/covers/{id:\d+}', [WishlistController::class, 'publicCover'])->withoutThrottle();
+
             // Cover images: many parallel requests, no session lock, not counted towards the request limit.
             $r->get('/books/{id:\d+}/cover', [CoverController::class, 'show'])->middleware(new Authenticate(readOnlySession: true))->withoutThrottle();
 
@@ -103,6 +108,12 @@ final class Kernel
                 $r->delete('/books/{id:\d+}/reads/{read:\d+}', [BookController::class, 'deleteRead']);
                 $r->post('/books/{id:\d+}/cover', [CoverController::class, 'upload'])->middleware(new RateLimit('cover_upload', 30, 60));
                 $r->delete('/books/{id:\d+}/cover', [CoverController::class, 'removeUpload']);
+                $r->get('/wishlist', [WishlistController::class, 'index']);
+                $r->post('/wishlist', [WishlistController::class, 'add']);
+                $r->put('/wishlist/sharing', [WishlistController::class, 'share']);
+                $r->delete('/wishlist/{id:\d+}', [WishlistController::class, 'remove']);
+                $r->post('/wishlist/{id:\d+}/fulfil', [WishlistController::class, 'fulfil']);
+                $r->get('/wishlists', [WishlistController::class, 'shared']);
                 $r->get('/covers/preview', [CoverController::class, 'preview'])->middleware(new RateLimit('cover_preview', 60, 60));
 
                 $r->get('/shelves', [ShelfController::class, 'index']);
