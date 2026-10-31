@@ -73,6 +73,7 @@ no daemon or cache server needed):
 | Google Books | 5 requests/s | `RATE_LIMIT_GOOGLE_BOOKS` |
 | Open Library covers by ISBN | 1 every 3 s (Open Library allows 100 per 5 minutes and IP) | `RATE_LIMIT_OPEN_LIBRARY_COVERS` |
 | DNB covers | 2 requests/s | `RATE_LIMIT_DNB_COVERS` |
+| Amazon covers (if enabled) | 1 request/s | `RATE_LIMIT_AMAZON_COVERS` |
 
 - A request **waits** briefly for its slot (a few seconds at most); if the wait would be longer, the
   source is skipped for now and the next one is used.
@@ -92,7 +93,8 @@ folder in your backups.
   [Open Library](https://openlibrary.org/dev/docs/api/covers) and the German National Library's cover
   service (`portal.dnb.de/opac/mvb/cover?isbn=…`, publisher covers from the VLB / buchhandel.de).
   For German ISBNs (978-3…) the DNB is asked first – it has them far more often and it spares Open
-  Library's tight limit. Switch it off with `COVER_DNB=false`.
+  Library's tight limit. Switch it off with `COVER_DNB=false`. Optionally Amazon as last source
+  ([see below](#amazon-covers-optional)).
 - Images are validated (real JPEG/PNG/WebP/GIF, not the 1×1 placeholder some services return) and
   scaled down to 600 px height when GD is available.
 - They are served by `GET /api/v1/books/{id}/cover` with long-lived browser caching and an ETag; the
@@ -104,6 +106,20 @@ folder in your backups.
 - Not found → the app draws a coloured placeholder cover with title and author. Temporary errors are
   retried after an hour; “no cover anywhere” after 30 days.
 - The cron job downloads covers ahead of time (`CRON_COVER_BATCH`), so lists load fast.
+
+### Amazon covers (optional)
+
+Many editions – older German paperbacks especially – have a cover on Amazon and nowhere else.
+`COVER_AMAZON=true` adds Amazon's product images as the **last** source, after the book's own cover URL,
+the DNB and Open Library. The image is found by ASIN (Kindle editions from a Bookstats import have one)
+or ISBN-10, so ISBNs starting with 979 without ASIN are skipped. Amazon answers a 1×1 pixel image when
+it has no cover; BookSpot treats that as “no cover”.
+
+- **Off by default.** Amazon's conditions of use do not allow downloading its images automatically.
+  Self-hosting does not change that – whether you accept it for your own instance is your decision.
+  Keep in mind that covers also appear on a [public wishlist](wishlist.md#who-sees-it).
+- After switching it on, books that had no cover anywhere are tried again with the next cron runs.
+- Throttled to 1 request per second; a 403/429/503 pauses Amazon for a while.
 
 ### Privacy and security
 

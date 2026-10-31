@@ -1,7 +1,8 @@
 # TODO
 
 Done since: "Leihe" is imported as a loan – no distinction between library and private loans
-needed (1.8.0); wishlist, private or shared with the instance / by public link (1.9.0).
+needed (1.8.0); wishlist, private or shared with the instance / by public link (1.9.0);
+Amazon as optional cover source, off by default (`COVER_AMAZON`, 1.9.1).
 
 Open items from user feedback (October 2026). Questions marked ❓ need an answer before building.
 
@@ -11,11 +12,6 @@ Open items from user feedback (October 2026). Questions marked ❓ need an answe
   improve. Started once, interrupted.
 - [ ] **Change the type of several books at once** in the multi-select of the book list
   (own / library loan / borrowed). Alternative to the re-import option "take over loans".
-
-## Features (not promised)
-
-- [ ] **Amazon as cover source** (optional, off by default, ISBN-10 image URL).
-  ❓ Wanted at all? Amazon only allows its images for partners (legal grey zone).
 
 ## Waiting for information
 

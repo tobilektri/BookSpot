@@ -13,7 +13,8 @@ namespace BookSpot;
  *
  * Sources in order: the book's cover_url, then Open Library and the German
  * National Library's cover service (publisher covers from the VLB) by ISBN –
- * for German ISBNs (978-3) the DNB first. Results
+ * for German ISBNs (978-3) the DNB first – and, only when the operator enables
+ * it (COVER_AMAZON=true), Amazon by ASIN/ISBN-10. Results
  * are remembered (cover_status) so missing covers are not requested again on
  * every page view: "none" is retried after 30 days, transient errors (rate
  * limit, network) after an hour.
@@ -97,7 +98,7 @@ final class CoverService
      */
     public function ensure(int $bookId): ?array
     {
-        $book = $this->db->one('SELECT id, isbn13, cover_url, cover_file, cover_status, cover_checked_at FROM books WHERE id = ?', [$bookId]);
+        $book = $this->db->one('SELECT id, isbn13, isbn10, asin, cover_url, cover_file, cover_status, cover_checked_at FROM books WHERE id = ?', [$bookId]);
         if ($book === null) {
             return null;
         }
@@ -130,7 +131,8 @@ final class CoverService
             }
             $response = $this->download($url);
             if ($provider !== null) {
-                if ($response['status'] === 429 || $response['status'] === 403) {
+                // Amazon throttles with 503 as well.
+                if ($response['status'] === 429 || $response['status'] === 403 || ($response['status'] === 503 && $provider === 'amazon_covers')) {
                     $this->limiter->penalize($provider);
                 } elseif ($response['status'] === 200) {
                     $this->limiter->recover($provider);
@@ -169,7 +171,7 @@ final class CoverService
         $processed = 0;
         $stored = 0;
         $rows = $this->db->all(
-            "SELECT id, isbn13, cover_url, cover_file, cover_status, cover_checked_at FROM books
+            "SELECT id, isbn13, isbn10, asin, cover_url, cover_file, cover_status, cover_checked_at FROM books
              WHERE cover_file IS NULL AND (cover_status IS NULL OR cover_status = 'error')
                AND (cover_url IS NOT NULL OR isbn13 IS NOT NULL)
              ORDER BY cover_checked_at IS NOT NULL, cover_checked_at, id LIMIT " . max(1, min(200, $limit))
@@ -218,7 +220,52 @@ final class CoverService
         if (!empty($book['isbn13'])) {
             array_push($urls, ...self::isbnCandidates((string) $book['isbn13'], 'L'));
         }
+        if (($amazon = self::amazonCandidate($book)) !== null) {
+            $urls[] = $amazon;
+        }
         return array_values(array_unique($urls));
+    }
+
+    /**
+     * Amazon product image by ASIN (= ISBN-10 for printed books, B0… for Kindle
+     * editions). Off by default – Amazon's conditions of use do not allow it; the
+     * operator decides (COVER_AMAZON). Missing covers come back as a 1×1 GIF,
+     * which store() rejects like other placeholders.
+     */
+    private static function amazonCandidate(array $book): ?string
+    {
+        if (!Config::bool('COVER_AMAZON', false)) {
+            return null;
+        }
+        $asin = strtoupper(trim((string) ($book['asin'] ?? '')));
+        if (!preg_match('/^(B0[0-9A-Z]{8}|\d{9}[\dX])$/', $asin)) {
+            $asin = (string) ($book['isbn10'] ?? '');
+            if ($asin === '' && !empty($book['isbn13'])) {
+                $asin = (string) (Isbn::to10((string) $book['isbn13']) ?? ''); // 979… ISBNs have no ISBN-10
+            }
+        }
+        return preg_match('/^(B0[0-9A-Z]{8}|\d{9}[\dX])$/', $asin) ? 'https://images-na.ssl-images-amazon.com/images/P/' . $asin . '.01.LZZZZZZZ.jpg' : null;
+    }
+
+    /**
+     * Sources enabled since the last run (e.g. COVER_AMAZON switched on): books
+     * that had no cover anywhere are tried again now instead of after 30 days.
+     */
+    public function retryWhenSourcesChanged(): int
+    {
+        $current = array_keys(array_filter(['dnb' => Config::bool('COVER_DNB', true), 'amazon' => Config::bool('COVER_AMAZON', false)]));
+        $stored = $this->db->value("SELECT value FROM settings WHERE name = 'cover_sources'");
+        $previous = is_string($stored) ? array_filter(explode(',', $stored)) : ['dnb']; // DNB covers exist since 1.7.3 (migration 009)
+        $added = array_diff($current, $previous);
+        $reset = 0;
+        if ($added !== []) {
+            $reset = $this->db->run("UPDATE books SET cover_status = NULL, cover_checked_at = NULL WHERE cover_status = 'none' AND cover_file IS NULL")->rowCount();
+        }
+        if (!is_string($stored) || $stored !== implode(',', $current)) {
+            $this->db->run("DELETE FROM settings WHERE name = 'cover_sources'");
+            $this->db->insert('settings', ['name' => 'cover_sources', 'value' => implode(',', $current)]);
+        }
+        return $reset;
     }
 
     /** @return list<string> */
@@ -247,15 +294,16 @@ final class CoverService
         return match (true) {
             (bool) preg_match('#^https://covers\.openlibrary\.org/b/(isbn|olid)/#', $url) => 'open_library_covers',
             str_starts_with($url, 'https://portal.dnb.de/opac/mvb/cover') => 'dnb_covers',
+            str_starts_with($url, 'https://images-na.ssl-images-amazon.com/images/P/') => 'amazon_covers',
             default => null,
         };
     }
 
-    /** Network errors, rate limits and server errors are worth retrying; Open Library rate-limits with 403. */
+    /** Network errors, rate limits and server errors are worth retrying; Open Library and Amazon rate-limit with 403. */
     private static function isTransient(int $status, string $url): bool
     {
         return $status === 0 || $status === 429 || $status >= 500
-            || ($status === 403 && str_contains($url, 'covers.openlibrary.org'));
+            || ($status === 403 && (str_contains($url, 'covers.openlibrary.org') || str_contains($url, 'images-na.ssl-images-amazon.com')));
     }
 
     private function due(array $book): bool
@@ -340,6 +388,9 @@ final class CoverService
         }
         if ($isbn13 !== null) {
             array_push($candidates, ...self::isbnCandidates($isbn13, 'M'));
+            if (($amazon = self::amazonCandidate(['isbn13' => $isbn13])) !== null) {
+                $candidates[] = $amazon;
+            }
         }
         foreach ($candidates as $candidate) {
             $response = $this->download($candidate);
