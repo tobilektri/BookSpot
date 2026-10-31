@@ -13,7 +13,7 @@ final class ExportService
     private const HEADER = [
         'Titel', 'Autor(en)', 'ISBN', 'ASIN', 'Erscheinungsjahr', 'Genre', 'Seitenanzahl', 'Buchart', 'Preis',
         'Erhalten als', 'Lesestatus', 'Lesebeginn', 'Leseende', 'Bewertung', 'Notizen', 'Erhalten am',
-        'Standort', 'Verlag', 'Sprache', 'Beschreibung', 'Cover',
+        'Standort', 'Verlag', 'Sprache', 'Beschreibung', 'Cover', 'Frühere Lesedurchgänge',
     ];
 
     public function __construct(private readonly Database $db)
@@ -38,6 +38,12 @@ final class ExportService
         $status = ['read' => 'Gelesen', 'reading' => 'Lese gerade', 'abandoned' => 'Abgebrochen', 'unread' => 'Ungelesen'];
         $via = ['owned' => 'Kauf', 'library_loan' => 'Bibliothek', 'personal_loan' => 'Geliehen'];
         $date = fn (?string $d) => $d ? (new \DateTimeImmutable($d))->format('d.m.Y') : '';
+        $reads = (new ReadHistoryService($this->db))->forUser($userId);
+        // "01.02.2023 – 15.02.2023; – 03.05.2024" (start unknown); read back by the import
+        $earlier = fn (int $bookId) => implode('; ', array_map(
+            fn ($r) => trim($date($r['started_at']) . ' – ' . $date($r['finished_at'])),
+            array_reverse($reads[$bookId] ?? [])
+        ));
 
         foreach ($rows as $row) {
             $location = '';
@@ -66,6 +72,7 @@ final class ExportService
                 $row['language'] ?? '',
                 $row['description'] ?? '',
                 $row['cover_url'] ?? '',
+                $earlier((int) $row['id']),
             ]), ';', '"', '');
         }
         return count($rows);

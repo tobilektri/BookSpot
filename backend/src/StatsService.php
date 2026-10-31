@@ -55,13 +55,22 @@ final class StatsService
             'pages_read' => (int) $r['pages_read'],
         ], $genreRows);
 
-        // Finished books per month of the selected year and per year overall.
+        // Every finished read: the current one (user_books) and earlier ones (book_reads, re-reads).
+        $reads = "SELECT ub.started_at, ub.finished_at, CASE WHEN ub.pages_read > b.pages THEN ub.pages_read ELSE b.pages END AS pages
+                  FROM user_books ub JOIN books b ON b.id = ub.book_id
+                  WHERE ub.user_id = :uid AND ub.reading_status = 'read'
+                  UNION ALL
+                  SELECT br.started_at, br.finished_at, b.pages
+                  FROM book_reads br JOIN books b ON b.id = br.book_id
+                  WHERE br.user_id = :uid2";
+        $readParams = ['uid' => $userId, 'uid2' => $userId];
+
+        // Finished reads per month of the selected year and per year overall.
         $finished = $this->db->all(
-            "SELECT SUBSTR(ub.finished_at, 1, 7) AS ym, COUNT(*) AS books, COALESCE(SUM(CASE WHEN ub.pages_read > b.pages THEN ub.pages_read ELSE b.pages END), 0) AS pages
-             FROM user_books ub JOIN books b ON b.id = ub.book_id
-             WHERE ub.user_id = :uid AND ub.reading_status = 'read' AND ub.finished_at IS NOT NULL
-             GROUP BY SUBSTR(ub.finished_at, 1, 7) ORDER BY ym",
-            ['uid' => $userId]
+            "SELECT SUBSTR(r.finished_at, 1, 7) AS ym, COUNT(*) AS books, COALESCE(SUM(r.pages), 0) AS pages
+             FROM ($reads) r WHERE r.finished_at IS NOT NULL
+             GROUP BY SUBSTR(r.finished_at, 1, 7) ORDER BY ym",
+            $readParams
         );
         $months = [];
         for ($m = 1; $m <= 12; $m++) {
@@ -81,11 +90,10 @@ final class StatsService
         }
         ksort($years);
 
-        // Reading pace from books with start and end date.
+        // Reading pace from reads with start and end date.
         $pace = $this->db->all(
-            "SELECT ub.started_at, ub.finished_at, b.pages FROM user_books ub JOIN books b ON b.id = ub.book_id
-             WHERE ub.user_id = :uid AND ub.reading_status = 'read' AND ub.started_at IS NOT NULL AND ub.finished_at IS NOT NULL",
-            ['uid' => $userId]
+            "SELECT r.started_at, r.finished_at, r.pages FROM ($reads) r WHERE r.started_at IS NOT NULL AND r.finished_at IS NOT NULL",
+            $readParams
         );
         $days = 0;
         $pacePages = 0;
@@ -118,6 +126,8 @@ final class StatsService
                 'read_without_date' => (int) ($totals['read_without_date'] ?? 0),
                 'unplaced' => (int) ($totals['unplaced'] ?? 0),
                 'value' => round((float) ($totals['value'] ?? 0), 2),
+                // finished reads of books read before (counted in months/years/pace, not in "status")
+                'rereads' => (int) $this->db->value('SELECT COUNT(*) FROM book_reads WHERE user_id = ?', [$userId]),
             ],
             'genres' => $genres,
             'months' => array_values($months),

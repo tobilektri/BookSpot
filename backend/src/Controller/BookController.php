@@ -8,6 +8,7 @@ use BookSpot\ApiException;
 use BookSpot\BookService;
 use BookSpot\Http\Response;
 use BookSpot\MetadataService;
+use BookSpot\ReadHistoryService;
 use BookSpot\Request;
 use BookSpot\ShelfService;
 use BookSpot\UserBookService;
@@ -102,6 +103,24 @@ final class BookController extends Controller
     public function updatePersonal(Request $request): array
     {
         return (new UserBookService($this->db()))->upsert($this->user($request)['id'], $this->bookId($request), $request->body);
+    }
+
+    /** Earlier read entered afterwards: {started_at?, finished_at} */
+    public function addRead(Request $request): array
+    {
+        return ['reads' => (new ReadHistoryService($this->db()))->add($this->user($request)['id'], $this->bookId($request), $request->body)];
+    }
+
+    /** "Read again": the finished read moves into the history, a new one starts today. */
+    public function readAgain(Request $request): array
+    {
+        return (new ReadHistoryService($this->db()))->readAgain($this->user($request)['id'], $this->bookId($request));
+    }
+
+    public function deleteRead(Request $request): array
+    {
+        $readId = $request->paramInt('read') ?? throw ApiException::validation(['read' => 'required']);
+        return ['reads' => (new ReadHistoryService($this->db()))->delete($this->user($request)['id'], $this->bookId($request), $readId)];
     }
 
     private function bookId(Request $request): int

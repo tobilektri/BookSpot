@@ -55,6 +55,7 @@ final class BookService
         ) ?? throw ApiException::notFound('book_not_found');
 
         $book = $this->present($row);
+        $book['personal']['reads'] = (new ReadHistoryService($this->db))->forUser($userId, $id)[$id] ?? [];
         // Other readers of the shared copy (only status, no private notes).
         $book['readers'] = array_map(fn ($r) => [
             'username' => $r['username'],
@@ -154,6 +155,11 @@ final class BookService
             $params
         );
         $items = array_map($this->present(...), $rows);
+        $reads = (new ReadHistoryService($this->db))->forUser($userId);
+        foreach ($items as &$item) {
+            $item['personal']['reads'] = $reads[$item['id']] ?? [];
+        }
+        unset($item);
         if (!empty($filters['compact'])) {
             // Lean payload for the offline catalogue cache.
             foreach ($items as &$item) {

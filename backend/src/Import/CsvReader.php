@@ -39,6 +39,7 @@ final class CsvReader
         'description' => ['beschreibung', 'description', 'klappentext'],
         'cover_url' => ['cover', 'coverurl', 'bild', 'imageurl', 'image'],
         'language' => ['sprache', 'language'],
+        'earlier_reads' => ['früherelesedurchgänge', 'earlierreads', 'rereads'],
     ];
 
     public const MAX_BYTES = 15 * 1024 * 1024;

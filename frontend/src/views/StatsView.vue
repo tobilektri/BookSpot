@@ -174,6 +174,7 @@ const maxAuthor = computed(() => Math.max(1, ...(stats.value?.top_authors ?? [])
           <div class="h-56"><ChartCanvas :config="monthConfig" :label="t('stats.perMonth', { year })" /></div>
           <p v-if="!monthHasData" class="mt-2 text-xs text-stone-500">{{ t('stats.noData') }}</p>
           <p v-if="stats.totals.read_without_date" class="mt-2 text-xs text-stone-500">{{ t('stats.withoutDate', { n: stats.totals.read_without_date }) }}</p>
+          <p v-if="stats.totals.rereads" class="mt-1 text-xs text-stone-500">{{ t('stats.rereads', { n: stats.totals.rereads }) }}</p>
         </section>
       </div>
 
