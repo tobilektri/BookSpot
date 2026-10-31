@@ -19,6 +19,7 @@ final class ImportController extends Controller
      *   shelf_name          name of that shelf
      *   overwrite_personal  0 = keep existing personal data (default 1)
      *   overwrite_location  1 = move existing books to the CSV location
+     *   take_over_loans     1 = books imported as own books that the CSV lists as library loan ("Leihe") become loans
      */
     public function import(Request $request): array
     {
@@ -43,6 +44,7 @@ final class ImportController extends Controller
             'shelf_name' => (string) $request->input('shelf_name', ''),
             'overwrite_personal' => $flag('overwrite_personal', true),
             'overwrite_location' => $flag('overwrite_location', false),
+            'take_over_loans' => $flag('take_over_loans', false),
         ]);
         $summary = $importer->import($rows);
         $summary['detected_columns'] = array_keys($reader->mapping);
