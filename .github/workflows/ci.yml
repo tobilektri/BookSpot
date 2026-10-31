@@ -18,21 +18,6 @@ jobs:
       matrix:
         php: ['8.2', '8.5']
         db: [sqlite, mariadb]
-    services:
-      mariadb:
-        # Official image via the AWS ECR Public mirror: anonymous pulls from
-        # Docker Hub on shared runners regularly fail with 429 (rate limit).
-        # Only started for the MariaDB jobs (an empty image skips the service).
-        image: ${{ matrix.db == 'mariadb' && 'public.ecr.aws/docker/library/mariadb:11.4' || '' }}
-        env:
-          MARIADB_ROOT_PASSWORD: root
-          MARIADB_DATABASE: bookspot_test
-          MARIADB_USER: bookspot
-          MARIADB_PASSWORD: bookspot
-        ports: ['3306:3306']
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
@@ -40,6 +25,26 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: pdo_sqlite, pdo_mysql, mbstring, curl, gmp
           coverage: none
+      - name: Start MariaDB
+        if: matrix.db == 'mariadb'
+        # Official image, tried from several mirrors: anonymous pulls on shared runners
+        # regularly fail on a single registry (Docker Hub: 429, ECR Public: data limit).
+        run: |
+          for image in public.ecr.aws/docker/library/mariadb:11.4 mirror.gcr.io/library/mariadb:11.4 docker.io/library/mariadb:11.4; do
+            for attempt in 1 2; do
+              docker pull -q "$image" && break 2
+              sleep 5
+            done
+          done
+          docker run -d --name mariadb -p 3306:3306 \
+            -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=bookspot_test \
+            -e MARIADB_USER=bookspot -e MARIADB_PASSWORD=bookspot "$image"
+          for i in $(seq 1 60); do
+            docker exec mariadb healthcheck.sh --connect --innodb_initialized && exit 0
+            sleep 2
+          done
+          docker logs mariadb
+          exit 1
       - run: composer install --no-interaction --no-progress --prefer-dist
       - name: Lint
         run: find backend public/api tests -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
