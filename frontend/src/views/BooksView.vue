@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Plus, CheckSquare, Square, X, MoveRight } from '@lucide/vue'
+import { Search, Plus, CheckSquare, Square, X, MoveRight, Gift } from '@lucide/vue'
 import { t, errorMessage } from '../lib/i18n.js'
 import { toast } from '../lib/store.js'
 import { books, loadCatalog, loading, fromCache, loadedAt, normalizeText } from '../lib/catalog.js'
@@ -174,6 +174,8 @@ async function moveSelection() {
       <button v-for="chip in statusChips" :key="chip.value" class="chip" :class="{ 'chip-active': status === chip.value }" @click="status = chip.value">{{ chip.label }}</button>
       <span class="mx-1 w-px shrink-0 bg-stone-300 dark:bg-stone-700"></span>
       <button v-for="chip in filterChips" :key="chip.value" class="chip" :class="{ 'chip-active': filter === chip.value }" @click="filter = filter === chip.value ? '' : chip.value">{{ chip.label }}</button>
+      <!-- Wished books are not part of the collection: own page, only when wanted -->
+      <RouterLink to="/wishlist" class="chip inline-flex items-center gap-1"><Gift class="h-3.5 w-3.5" />{{ t('wishlist.title') }}</RouterLink>
     </div>
 
     <div class="grid grid-cols-2 gap-2">

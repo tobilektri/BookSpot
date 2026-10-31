@@ -12,6 +12,7 @@
 - [Shelves & compartments](shelves.md)
 - [Import & export](import-export.md)
 - [Loans & push reminders](loans-and-reminders.md)
+- [Wishlist & re-reads](wishlist.md)
 - [Users & roles](users-and-roles.md)
 - [Offline use & installing the app](offline-pwa.md)
 

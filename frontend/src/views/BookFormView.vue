@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Download, BookMarked, Library, Users } from '@lucide/vue'
+import { ArrowLeft, Download, BookMarked, Library, Users, Gift } from '@lucide/vue'
 import { api, ApiError } from '../lib/api.js'
 import { t, errorMessage, fieldError } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
@@ -90,6 +90,7 @@ onMounted(async () => {
       if (book.entry_type !== 'library_loan' && !book.loan_due) form.loan_due = ''
       dueAuto.value = Boolean(form.loan_start) && form.loan_due === defaultDue.value
       location.value = { shelf_id: book.shelf_id, shelf_col: book.shelf_col, shelf_row: book.shelf_row }
+      wishBook.value = Boolean(book.wishlist)
       savedCover.value = { id: book.id, cover_version: book.cover_version, has_cover: book.has_cover, cover_url: book.cover_url, isbn13: book.isbn13 }
     } catch (e) {
       toast(errorMessage(e), 'error')
@@ -100,6 +101,7 @@ onMounted(async () => {
     form.isbn = String(route.query.isbn)
     fetchMetadata()
   }
+  if (!isEdit.value && route.query.wishlist) form.entry_type = 'wishlist'
 })
 
 async function fetchMetadata() {
@@ -131,6 +133,14 @@ async function fetchMetadata() {
 
 const payload = computed(() => {
   const data = { ...form, ...location.value }
+  if (data.entry_type === 'wishlist') {
+    for (const key of ['entry_type', 'shelf_id', 'shelf_col', 'shelf_row', 'loan_from', 'loan_start', 'loan_due', 'lent_to', 'status', 'price', 'acquired_at']) delete data[key]
+    return { ...data, wishlist: true }
+  }
+  if (wishBook.value) {
+    for (const key of ['entry_type', 'shelf_id', 'shelf_col', 'shelf_row', 'loan_from', 'loan_start', 'loan_due', 'lent_to', 'status']) delete data[key]
+    return data
+  }
   if (data.entry_type !== 'owned') {
     data.shelf_id = null
     data.shelf_col = null
@@ -158,6 +168,11 @@ async function submit() {
       : await api('v1/books', { method: 'POST', body: payload.value })
     patchBook(result.book)
     invalidateShelves()
+    if (result.book.wishlist || (isWish.value && result.book.wished)) {
+      toast(t('wishlist.added'), 'success')
+      router.replace(isEdit.value ? `/books/${result.book.id}` : '/wishlist')
+      return
+    }
     toast(isEdit.value ? t('common.saved') : t('book.created'), 'success')
     router.replace(`/books/${result.book.id}`)
     // A loan with a due date is the moment where reminders make most sense.
@@ -177,7 +192,11 @@ const types = computed(() => [
   { value: 'owned', label: t('entry.owned'), hint: t('entry.ownedHint'), icon: BookMarked },
   { value: 'library_loan', label: t('entry.library_loan'), hint: t('entry.libraryHint'), icon: Library },
   { value: 'personal_loan', label: t('entry.personal_loan'), hint: t('entry.personalHint'), icon: Users },
+  // New books only: a wish is not part of the collection (no place, no loan, no reading status).
+  ...(isEdit.value ? [] : [{ value: 'wishlist', label: t('entry.wishlist'), hint: t('entry.wishlistHint'), icon: Gift }]),
 ])
+const isWish = computed(() => form.entry_type === 'wishlist')
+const wishBook = ref(false) // editing a wished-only book
 </script>
 
 <template>
@@ -246,9 +265,9 @@ const types = computed(() => [
         </div>
       </section>
 
-      <section class="card space-y-3">
+      <section v-if="!wishBook" class="card space-y-3">
         <h2 class="font-semibold">{{ t('book.type') }}</h2>
-        <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div class="grid grid-cols-1 gap-2" :class="types.length > 3 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'">
           <label
             v-for="type in types"
             :key="type.value"
@@ -264,7 +283,8 @@ const types = computed(() => [
           </label>
         </div>
 
-        <template v-if="form.entry_type === 'owned'">
+        <p v-if="isWish" class="text-sm text-stone-600 dark:text-stone-400">{{ t('wishlist.formHint') }}</p>
+        <template v-else-if="form.entry_type === 'owned'">
           <div>
             <div class="label">{{ t('book.location') }}</div>
             <LocationPicker v-model="location" />
@@ -317,7 +337,7 @@ const types = computed(() => [
             <option value="discarded">{{ t('book.statusDiscarded') }}</option>
           </select>
         </div>
-        <div v-else>
+        <div v-else-if="!isWish">
           <label class="label" for="initial_status">{{ t('book.initialStatus') }}</label>
           <select id="initial_status" v-model="initialStatus" class="input">
             <option v-for="s in ['unread', 'reading', 'read']" :key="s" :value="s">{{ t(`status.${s}`) }}</option>

@@ -61,6 +61,14 @@ curl -b jar -H 'X-Requested-With: BookSpot' -H 'Content-Type: application/json' 
 | `GET` · `PUT /books/{id}/personal` | user | your reading data: `reading_status`, `rating`, `pages_read`, `started_at`, `finished_at`, `notes` |
 | `GET /books/enrich-status` · `POST /books/enrich` | user | books with missing data / fill in a few |
 | `GET /books/{id}/cover?v=` | user | cover image (JPEG/PNG/WebP), `404` if none |
+| `POST` · `DELETE /books/{id}/cover` | user | upload an own cover (multipart `cover`) / remove it |
+| `POST /books/{id}/reads` · `DELETE /books/{id}/reads/{read}` | user | add an earlier read `{started_at?, finished_at}` / delete it |
+| `POST /books/{id}/read-again` | user | keep the finished read, start a new one today |
+| `GET` · `POST /wishlist` | user | your wishlist and sharing / add a catalogue book `{book_id}` (new books: `POST /books` with `wishlist: true`) |
+| `DELETE /wishlist/{id}` · `POST /wishlist/{id}/fulfil` | user | remove a wish / bought or borrowed `{entry_type: owned\|library_loan}` |
+| `PUT /wishlist/sharing` | user | `{visibility: private\|instance\|public, renew?}` |
+| `GET /wishlists` | user | lists other users share with the instance |
+| `GET /public/wishlists/{token}` · `…/covers/{id}` | – | public list behind a share link (no sign-in) |
 | `GET /covers/preview?url=…` or `?isbn=…` | user | cover preview fetched by the server, not stored |
 | `GET /lookup/{isbn}` | user | `{found, metadata, unavailable}` from the external sources |
 
