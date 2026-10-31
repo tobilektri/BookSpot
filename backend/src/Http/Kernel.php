@@ -98,6 +98,9 @@ final class Kernel
                 $r->delete('/books/{id:\d+}', [BookController::class, 'destroy']);
                 $r->get('/books/{id:\d+}/personal', [BookController::class, 'personal']);
                 $r->put('/books/{id:\d+}/personal', [BookController::class, 'updatePersonal']);
+                $r->post('/books/{id:\d+}/reads', [BookController::class, 'addRead']);
+                $r->post('/books/{id:\d+}/read-again', [BookController::class, 'readAgain']);
+                $r->delete('/books/{id:\d+}/reads/{read:\d+}', [BookController::class, 'deleteRead']);
                 $r->get('/covers/preview', [CoverController::class, 'preview'])->middleware(new RateLimit('cover_preview', 60, 60));
 
                 $r->get('/shelves', [ShelfController::class, 'index']);

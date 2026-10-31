@@ -1,9 +1,9 @@
 <script setup>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle } from '@lucide/vue'
+import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle, RotateCcw, History, Plus, X } from '@lucide/vue'
 import { api } from '../lib/api.js'
-import { t, errorMessage } from '../lib/i18n.js'
+import { t, errorMessage, fieldError } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
 import { books as catalog, patchBook, removeBook } from '../lib/catalog.js'
 import { savePersonal, moveBooks } from '../lib/sync.js'
@@ -31,6 +31,9 @@ const showLend = ref(false)
 const lendName = ref('')
 const showExtend = ref(false)
 const extendDate = ref('')
+const showAddRead = ref(false)
+const newRead = reactive({ started_at: '', finished_at: '' })
+const readErrors = ref({})
 
 async function load() {
   error.value = ''
@@ -96,6 +99,57 @@ const saveDetails = () =>
     finished_at: personal.finished_at || null,
     notes: personal.notes,
   })
+
+// ---- re-reads: earlier reads are kept, statistics count every finished read
+const earlierReads = computed(() => book.value?.personal?.reads ?? [])
+const readCount = computed(() => earlierReads.value.length + (book.value?.personal?.reading_status === 'read' ? 1 : 0))
+
+function setReads(reads, personalData = {}) {
+  book.value = { ...book.value, personal: { ...book.value.personal, ...personalData, reads } }
+  patchBook(book.value)
+  resetPersonal()
+}
+
+async function readAgain() {
+  try {
+    const result = await api(`v1/books/${book.value.id}/read-again`, { method: 'POST' })
+    setReads(result.reads, result.personal)
+    toast(t('book.readAgainStarted'), 'success')
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+function openAddRead() {
+  Object.assign(newRead, { started_at: '', finished_at: '' })
+  readErrors.value = {}
+  showAddRead.value = true
+}
+
+async function addRead() {
+  readErrors.value = {}
+  try {
+    const result = await api(`v1/books/${book.value.id}/reads`, { method: 'POST', body: { started_at: newRead.started_at || null, finished_at: newRead.finished_at } })
+    setReads(result.reads)
+    showAddRead.value = false
+    toast(t('common.saved'), 'success')
+  } catch (e) {
+    if (e.details?.errors) readErrors.value = e.details.errors
+    else toast(errorMessage(e), 'error')
+  }
+}
+
+async function deleteRead(read) {
+  if (!confirm(t('book.deleteReadConfirm'))) return
+  try {
+    const result = await api(`v1/books/${book.value.id}/reads/${read.id}`, { method: 'DELETE' })
+    setReads(result.reads)
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+const readPeriod = (read) => [read.started_at ? formatDate(read.started_at) : '…', formatDate(read.finished_at)].join(' – ')
 
 async function updateBook(data, message = t('common.saved')) {
   try {
@@ -307,6 +361,23 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             <button class="btn-primary" :disabled="saving">{{ t('common.save') }}</button>
           </div>
         </form>
+        <!-- Re-reads -->
+        <div class="space-y-2 border-t border-stone-200 pt-3 text-sm dark:border-stone-800">
+          <div class="flex flex-wrap items-center gap-2">
+            <History class="h-4 w-4 text-stone-500" />
+            <span class="flex-1 text-stone-600 dark:text-stone-400">{{ readCount > 1 ? t('book.readTimes', { n: readCount }) : t('book.earlierReads') }}</span>
+            <button v-if="personal.reading_status === 'read'" class="btn-secondary !py-1.5 text-sm" :disabled="!store.online || saving" @click="readAgain">
+              <RotateCcw class="h-4 w-4" />{{ t('book.readAgain') }}
+            </button>
+            <button class="btn-ghost !px-2 !py-1.5 text-sm" :disabled="!store.online" @click="openAddRead"><Plus class="h-4 w-4" />{{ t('book.addRead') }}</button>
+          </div>
+          <ul v-if="earlierReads.length" class="space-y-1">
+            <li v-for="read in earlierReads" :key="read.id" class="flex items-center justify-between rounded-lg bg-stone-100 px-3 py-1.5 dark:bg-stone-800">
+              <span>{{ readPeriod(read) }}</span>
+              <button class="btn-ghost !p-1" :disabled="!store.online" :aria-label="t('common.delete')" @click="deleteRead(read)"><X class="h-4 w-4" /></button>
+            </li>
+          </ul>
+        </div>
         <div v-if="book.readers?.length" class="border-t border-stone-200 pt-3 text-sm dark:border-stone-800">
           <div class="mb-1 text-xs text-stone-500">{{ t('book.otherReaders') }}</div>
           <div v-for="r in book.readers" :key="r.username" class="flex items-center justify-between">
@@ -352,6 +423,28 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
         <input id="lend_to" v-model="lendName" class="input" maxlength="100" required autofocus />
         <div class="flex justify-end gap-2">
           <button type="button" class="btn-secondary" @click="showLend = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary">{{ t('common.save') }}</button>
+        </div>
+      </form>
+    </BaseModal>
+
+    <BaseModal v-if="showAddRead" :title="t('book.addReadTitle')" @close="showAddRead = false">
+      <form class="space-y-3" @submit.prevent="addRead">
+        <p class="text-sm text-stone-600 dark:text-stone-400">{{ t('book.addReadHint') }}</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label" for="read_started">{{ t('book.started') }}</label>
+            <input id="read_started" v-model="newRead.started_at" type="date" class="input" />
+            <p v-if="readErrors.started_at" class="field-error">{{ fieldError(readErrors.started_at) }}</p>
+          </div>
+          <div>
+            <label class="label" for="read_finished">{{ t('book.finished') }}</label>
+            <input id="read_finished" v-model="newRead.finished_at" type="date" class="input" :max="todayIso()" required />
+            <p v-if="readErrors.finished_at" class="field-error">{{ fieldError(readErrors.finished_at) }}</p>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn-secondary" @click="showAddRead = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary">{{ t('common.save') }}</button>
         </div>
       </form>

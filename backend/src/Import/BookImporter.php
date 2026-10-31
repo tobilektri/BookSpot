@@ -411,6 +411,7 @@ final class BookImporter
             }
             $this->db->update('user_books', $data, ['id' => (int) $existing['id']]);
         }
+        $this->saveEarlierReads($bookId, $row['earlier_reads'] ?? '');
         $this->summary['personal_saved']++;
     }
 
@@ -443,6 +444,38 @@ final class BookImporter
             $shelf['columns']
         )];
         $this->compartments = $shelves->compartmentIndex();
+    }
+
+    /** Re-reads from the export column "Frühere Lesedurchgänge" (01.02.2023 – 15.02.2023; – 03.05.2024). */
+    private function saveEarlierReads(int $bookId, string $value): void
+    {
+        foreach (self::parseReads($value) as [$started, $finished]) {
+            $exists = $this->db->value(
+                'SELECT COUNT(*) FROM book_reads WHERE user_id = ? AND book_id = ? AND finished_at = ? AND ' . ($started === null ? 'started_at IS NULL' : 'started_at = ?'),
+                array_values(array_filter([$this->userId, $bookId, $finished, $started], fn ($v) => $v !== null))
+            );
+            if ((int) $exists === 0) {
+                $this->db->insert('book_reads', ['user_id' => $this->userId, 'book_id' => $bookId, 'started_at' => $started, 'finished_at' => $finished, 'created_at' => App::nowString()]);
+            }
+        }
+    }
+
+    /** @return list<array{0: ?string, 1: string}> [start, end] of every read with a valid end date */
+    public static function parseReads(string $value): array
+    {
+        $reads = [];
+        foreach (preg_split('/\s*;\s*/u', trim($value)) ?: [] as $part) {
+            $dates = preg_split('/\s*[–—]\s*|\s+-\s+|\s+bis\s+/u', trim($part)) ?: [];
+            if (count($dates) === 1) {
+                array_unshift($dates, '');
+            }
+            $started = Dates::parse($dates[0] ?? '');
+            $finished = Dates::parse($dates[1] ?? '');
+            if (is_string($finished)) {
+                $reads[] = [is_string($started) ? $started : null, $finished];
+            }
+        }
+        return $reads;
     }
 
     public static function readingStatus(string $value): ?string

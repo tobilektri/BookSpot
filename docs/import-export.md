@@ -38,6 +38,7 @@ Column names are matched case- and accent-insensitively in German and English:
 | Type | `Erhalten als`/`Source`: `Leihe`, `Bibliothek`, `Onleihe` → library loan; `Ausleihe`, `geliehen` → borrowed from a person; anything else (`Kauf`, `Geschenk` …) → own book |
 | Location | `Standort`/`Location`/`Shelf` – or a code like `L2` inside the notes |
 | Notes | `Notizen`/`Notes`/`Private Notes` (minus the location code) |
+| Earlier reads | `Frühere Lesedurchgänge` (written by BookSpot's export): `01.02.2023 – 15.02.2023; – 03.05.2024` |
 
 Catalogue fields go into the shared catalogue; **reading status, rating, dates and notes belong to
 the person who imports**. Several people can import their own CSV (or the same one) to bring in their
@@ -61,5 +62,8 @@ imported as **returned** – e-book loans end by themselves, so no reminder is s
 CSV (semicolon, UTF-8 with BOM, opens directly in Excel/LibreOffice). It can be imported again – into
 BookSpot or Bookstats. Cells that would start with `=`, `+`, `-` or `@` are escaped so a spreadsheet
 does not execute them as formulas.
+
+Earlier reads of a book (*Read again* / *Add a read* in the book view) are in the column
+`Frühere Lesedurchgänge` and come back with an import.
 
 Covers are not part of the CSV; for a complete backup see [installation.md](installation.md#backups).
