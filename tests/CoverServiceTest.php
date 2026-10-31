@@ -223,6 +223,55 @@ final class CoverServiceTest extends TestCase
         self::assertNull($this->db->value('SELECT cover_file FROM books WHERE id = ?', [$book['id']]));
     }
 
+    public function testAmazonIsOnlyAskedWhenEnabled(): void
+    {
+        $book = ['isbn13' => '9783548283951', 'isbn10' => '3548283950'];
+        self::assertStringNotContainsString('amazon', implode(' ', CoverService::candidates($book)), 'off by default');
+
+        Config::set('COVER_AMAZON', 'true');
+        try {
+            $amazon = 'https://images-na.ssl-images-amazon.com/images/P/';
+            self::assertSame($amazon . '3548283950.01.LZZZZZZZ.jpg', array_slice(CoverService::candidates($book), -1)[0], 'last, after the open sources');
+            self::assertSame($amazon . 'B00ABCDEFG.01.LZZZZZZZ.jpg', array_slice(CoverService::candidates(['asin' => 'b00abcdefg'] + $book), -1)[0], 'Kindle edition by ASIN');
+            self::assertSame($amazon . '3548283950.01.LZZZZZZZ.jpg', array_slice(CoverService::candidates(['isbn13' => '9783548283951']), -1)[0], 'ISBN-10 derived');
+            self::assertStringNotContainsString('amazon', implode(' ', CoverService::candidates(['isbn13' => '9791032704001'])), '979 ISBNs have no ISBN-10');
+
+            // Amazon answers a 1×1 GIF when it has no cover: counts as "none".
+            $gif = base64_decode('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');
+            $missing = $this->books->create(['title' => 'Ohne', 'isbn' => '9783404139873'], $this->user['id']);
+            $found = $this->books->create(['title' => 'Mit', 'isbn' => '9783548283951'], $this->user['id']);
+            $service = new CoverService($this->db, function (string $url) use ($gif) {
+                if (!str_contains($url, 'amazon')) {
+                    return ['status' => 404, 'body' => null];
+                }
+                return str_contains($url, '3548283950') ? ['status' => 200, 'body' => self::png(100, 150)] : ['status' => 200, 'body' => $gif];
+            });
+            self::assertNull($service->ensure($missing['id']));
+            self::assertSame('none', $this->db->value('SELECT cover_status FROM books WHERE id = ?', [$missing['id']]));
+            self::assertNotNull($service->ensure($found['id']));
+        } finally {
+            Config::set('COVER_AMAZON', null);
+        }
+    }
+
+    public function testBooksWithoutCoverAreRetriedWhenASourceIsSwitchedOn(): void
+    {
+        $book = $this->books->create(['title' => 'Ohne', 'isbn' => '9783404139873'], $this->user['id']);
+        $service = new CoverService($this->db, fn () => ['status' => 404, 'body' => null]);
+        $service->ensure($book['id']);
+        self::assertSame(0, $service->retryWhenSourcesChanged(), 'nothing new: nothing to retry');
+        self::assertSame('none', $this->db->value('SELECT cover_status FROM books WHERE id = ?', [$book['id']]));
+
+        Config::set('COVER_AMAZON', 'true');
+        try {
+            self::assertSame(1, $service->retryWhenSourcesChanged());
+            self::assertNull($this->db->value('SELECT cover_status FROM books WHERE id = ?', [$book['id']]));
+            self::assertSame(0, $service->retryWhenSourcesChanged(), 'only once');
+        } finally {
+            Config::set('COVER_AMAZON', null);
+        }
+    }
+
     public function testPreviewIsFetchedButNotStored(): void
     {
         $calls = [];
