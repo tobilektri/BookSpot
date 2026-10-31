@@ -6,7 +6,7 @@ import { t, errorMessage } from '../lib/i18n.js'
 import { toast } from '../lib/store.js'
 import { books, loadCatalog, loading, fromCache, loadedAt, normalizeText } from '../lib/catalog.js'
 import { moveBooks } from '../lib/sync.js'
-import { formatDate, formatNumber } from '../lib/format.js'
+import { formatDate, formatNumber, compareNewest } from '../lib/format.js'
 import { cleanIsbn } from '../lib/isbn.js'
 import BookRow from '../components/BookRow.vue'
 import BaseModal from '../components/BaseModal.vue'
@@ -21,7 +21,16 @@ const q = ref(String(route.query.q ?? ''))
 const status = ref(String(route.query.status ?? ''))
 const filter = ref(String(route.query.filter ?? ''))
 const genre = ref(String(route.query.genre ?? ''))
-const sort = ref(String(route.query.sort ?? 'title'))
+// The sort order is remembered per device; links and the URL still win.
+const SORT_KEY = 'bookspot.books.sort'
+function storedSort() {
+  try {
+    return localStorage.getItem(SORT_KEY)
+  } catch {
+    return null
+  }
+}
+const sort = ref(String(route.query.sort ?? storedSort() ?? 'title'))
 
 const pageSize = 60
 const visible = ref(pageSize)
@@ -47,6 +56,14 @@ onMounted(async () => {
 onUnmounted(() => observer?.disconnect())
 
 // Keep filters in the URL (shareable, back button friendly).
+watch(sort, (value) => {
+  try {
+    localStorage.setItem(SORT_KEY, value)
+  } catch {
+    /* private mode: not remembered */
+  }
+})
+
 watch([q, status, filter, genre, sort], () => {
   visible.value = pageSize
   const query = { q: q.value || undefined, status: status.value || undefined, filter: filter.value || undefined, genre: genre.value || undefined, sort: sort.value !== 'title' ? sort.value : undefined }
@@ -79,7 +96,7 @@ const filtered = computed(() => {
   const sorters = {
     title: (a, b) => collator.compare(a.title, b.title),
     authors: (a, b) => collator.compare(a.authors || '~', b.authors || '~') || collator.compare(a.title, b.title),
-    recent: (a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id,
+    recent: compareNewest,
     pages: (a, b) => b.pages - a.pages,
     year: (a, b) => (b.published_year ?? 0) - (a.published_year ?? 0),
     due: (a, b) => (a.loan_due ?? '9999').localeCompare(b.loan_due ?? '9999'),

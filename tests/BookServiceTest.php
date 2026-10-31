@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BookSpot\Tests;
 
 use BookSpot\ApiException;
+use BookSpot\App;
 use BookSpot\BookService;
 use BookSpot\ReminderService;
 use BookSpot\PushService;
@@ -69,6 +70,20 @@ final class BookServiceTest extends TestCase
 
         $bought = $this->books->update($loan['id'], ['entry_type' => 'owned'], $user['id']);
         self::assertNull($bought['loan_due']);
+    }
+
+    public function testNewestUsesTheReceivedDate(): void
+    {
+        $user = $this->createUser();
+        // Imported in CSV order (same moment), but received at different dates.
+        $this->books->create(['title' => 'Alt', 'acquired_at' => '2019-03-01'], $user['id']);
+        $this->books->create(['title' => 'Neu erhalten', 'acquired_at' => '2026-09-30'], $user['id']);
+        $this->books->create(['title' => 'Mitte', 'acquired_at' => '2023-07-15'], $user['id']);
+        App::setNow('2026-10-09 15:00:00');
+        $this->books->create(['title' => 'Heute gescannt'], $user['id']); // no received date: added today
+
+        $titles = array_column($this->books->list(['sort' => 'recent'], $user['id'])['items'], 'title');
+        self::assertSame(['Heute gescannt', 'Neu erhalten', 'Mitte', 'Alt'], $titles);
     }
 
     public function testLibraryLoanUsesDefaultLoanPeriod(): void

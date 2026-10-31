@@ -132,7 +132,8 @@ final class BookService
 
         $order = match ((string) ($filters['sort'] ?? 'title')) {
             'authors' => 'b.authors, b.title',
-            'recent' => 'b.created_at DESC, b.id DESC',
+            // received ("Erhalten am", also from CSV imports), otherwise added
+            'recent' => 'COALESCE(b.acquired_at, SUBSTR(b.created_at, 1, 10)) DESC, b.created_at DESC, b.id DESC',
             'pages' => 'b.pages DESC, b.title',
             'year' => 'b.published_year DESC, b.title',
             'due' => 'b.loan_due IS NULL, b.loan_due, b.title',

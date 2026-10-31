@@ -7,7 +7,7 @@ import { t, errorMessage } from '../lib/i18n.js'
 import { api } from '../lib/api.js'
 import { books, loadCatalog, patchBook } from '../lib/catalog.js'
 import { savePersonal } from '../lib/sync.js'
-import { formatNumber, formatDate } from '../lib/format.js'
+import { formatNumber, formatDate, compareNewest } from '../lib/format.js'
 import BookCover from '../components/BookCover.vue'
 import BookRow from '../components/BookRow.vue'
 import DueLabel from '../components/DueLabel.vue'
@@ -34,7 +34,7 @@ const loans = computed(() =>
 const reading = computed(() => books.value.filter((b) => b.personal?.reading_status === 'reading'))
 const lent = computed(() => books.value.filter((b) => b.lent_to))
 const unplaced = computed(() => books.value.filter((b) => b.entry_type === 'owned' && !b.shelf_id).length)
-const recent = computed(() => [...books.value].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id).slice(0, 8))
+const recent = computed(() => [...books.value].sort(compareNewest).slice(0, 8))
 const readCount = computed(() => books.value.filter((b) => b.personal?.reading_status === 'read').length)
 const pagesRead = computed(() =>
   books.value.reduce((sum, b) => sum + (b.personal?.reading_status === 'read' ? Math.max(b.pages, b.personal.pages_read) : b.personal?.pages_read ?? 0), 0),
