@@ -443,6 +443,7 @@ final class BookService
             // Covers are served locally by api/cover.php; the version changes with the source.
             'cover_version' => CoverService::version($row),
             'has_cover' => ($row['cover_status'] ?? null) !== 'none',
+            'cover_uploaded' => !empty($row['cover_uploaded_at']),
             'format' => $row['format'],
             'price' => $row['price'] === null ? null : (float) $row['price'],
             'acquired_at' => $row['acquired_at'],

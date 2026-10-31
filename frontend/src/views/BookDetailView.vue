@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle, RotateCcw, History, Plus, X } from '@lucide/vue'
+import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle, RotateCcw, History, Plus, X, Camera } from '@lucide/vue'
 import { api } from '../lib/api.js'
 import { t, errorMessage, fieldError } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
@@ -9,6 +9,7 @@ import { books as catalog, patchBook, removeBook } from '../lib/catalog.js'
 import { savePersonal, moveBooks } from '../lib/sync.js'
 import { formatDate, formatPrice, locationText, todayIso, addDaysIso } from '../lib/format.js'
 import { invalidateShelves } from '../lib/shelves.js'
+import { shrinkImage } from '../lib/image.js'
 import BookCover from '../components/BookCover.vue'
 import StarRating from '../components/StarRating.vue'
 import DueLabel from '../components/DueLabel.vue'
@@ -99,6 +100,39 @@ const saveDetails = () =>
     finished_at: personal.finished_at || null,
     notes: personal.notes,
   })
+
+// ---- own cover (photo) for books no source has a cover for
+const uploadingCover = ref(false)
+
+async function uploadCover(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  uploadingCover.value = true
+  try {
+    const form = new FormData()
+    form.append('cover', await shrinkImage(file), 'cover.jpg')
+    const result = await api(`v1/books/${book.value.id}/cover`, { method: 'POST', form })
+    book.value = { ...result.book, personal: { ...result.book.personal, reads: book.value.personal?.reads ?? [] } }
+    patchBook(book.value)
+    toast(t('book.coverSaved'), 'success')
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  } finally {
+    uploadingCover.value = false
+  }
+}
+
+async function removeCover() {
+  if (!confirm(t('book.coverRemoveConfirm'))) return
+  try {
+    const result = await api(`v1/books/${book.value.id}/cover`, { method: 'DELETE' })
+    book.value = result.book
+    patchBook(result.book)
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
 
 // ---- re-reads: earlier reads are kept, statistics count every finished read
 const earlierReads = computed(() => book.value?.personal?.reads ?? [])
@@ -247,7 +281,19 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
 
     <template v-else>
       <section class="flex flex-col gap-4 sm:flex-row">
-        <BookCover :book="book" size="lg" class="self-center sm:self-start" />
+        <div class="flex flex-col items-center gap-1 self-center sm:self-start">
+          <BookCover :book="book" size="lg" />
+          <label
+            class="btn-ghost cursor-pointer !px-2 !py-1 text-xs"
+            :class="{ 'pointer-events-none opacity-50': !store.online || uploadingCover }"
+            :title="t('book.coverHint')"
+          >
+            <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" /><Camera v-else class="h-4 w-4" />
+            {{ t(book.has_cover === false ? 'book.coverAdd' : 'book.coverReplace') }}
+            <input type="file" accept="image/*" class="sr-only" :disabled="!store.online || uploadingCover" @change="uploadCover" />
+          </label>
+          <button v-if="book.cover_uploaded" class="btn-ghost !px-2 !py-1 text-xs text-stone-500" :disabled="!store.online" @click="removeCover">{{ t('book.coverRemove') }}</button>
+        </div>
         <div class="min-w-0 flex-1">
           <h1 class="font-serif text-2xl leading-tight font-semibold">{{ book.title }}</h1>
           <p class="mt-1 text-stone-600 dark:text-stone-400">{{ book.authors || t('common.unknownAuthor') }}</p>

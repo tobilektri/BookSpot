@@ -84,6 +84,7 @@ const filtered = computed(() => {
     if (filter.value === 'unplaced' && (b.entry_type !== 'owned' || b.shelf_id)) return false
     if (filter.value === 'lent' && !b.lent_to) return false
     if (filter.value === 'library' && b.entry_type === 'owned') return false
+    if (filter.value === 'nocover' && b.has_cover !== false) return false
     if (genre.value && b.genre !== genre.value) return false
     if (needle) {
       const hay = normalizeText(`${b.title} ${b.authors} ${b.genre ?? ''} ${b.publisher ?? ''} ${b.location?.compartment ?? ''}`)
@@ -115,6 +116,7 @@ const filterChips = computed(() => [
   { value: 'unplaced', label: t('books.filterUnplaced') },
   { value: 'library', label: t('books.filterLibrary') },
   { value: 'lent', label: t('books.filterLent') },
+  { value: 'nocover', label: t('books.filterNoCover') },
 ])
 
 function toggle(id) {
