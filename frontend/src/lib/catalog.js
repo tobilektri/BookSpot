@@ -58,6 +58,8 @@ export function loadCatalog({ force = false } = {}) {
 
 /** Update a single book in the in-memory list after an edit. */
 export function patchBook(book) {
+  // Wished-only books are not part of the collection (they live on the wishlist).
+  if (book.wishlist) return removeBook(book.id)
   const index = books.value.findIndex((b) => b.id === book.id)
   const next = [...books.value]
   if (index === -1) next.push(book)

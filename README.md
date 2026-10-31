@@ -34,7 +34,9 @@ shelf, and keep track of what everybody in the household is reading.
 - 👪 **One catalogue, private reading data**: everyone in the household sees the same books and shelves;
   reading status, ratings, progress and notes are per person.
 - ⏰ **Library loans** with default loan period and **push reminders** 3 days and 1 day before the due date.
-- 📈 **Statistics**: books and pages per month and year, genres, reading pace, top authors.
+- 🎁 **Wishlist**: private, shared with everybody on the instance or by a public link (gift ideas);
+  “bought” or “borrowed” takes the book into the collection.
+- 📈 **Statistics**: books and pages per month and year, genres, reading pace, top authors – re-reads count too.
 - 📥 **Bookstats CSV import** (also Goodreads/generic CSV) incl. location codes, and CSV export.
 - 📱 **Installable PWA**, works offline, light and dark mode, English and German UI.
 - 🔒 **Self-hosted & private**: no tracking, covers are stored on your server, the browser never
@@ -110,6 +112,7 @@ php -S localhost:8000 -t public backend/bin/dev-router.php
 | [Scanning & batch scanning](docs/scanning.md) | Camera, scanner engines, batch mode, offline scans |
 | [Shelves & compartments](docs/shelves.md) | Shelf model, editor, drag & drop, location codes |
 | [Import & export](docs/import-export.md) | Bookstats/Goodreads CSV, column mapping, duplicates |
+| [Wishlist & re-reads](docs/wishlist.md) | Private or shared wishlists, public link, reading a book again |
 | [Book data & covers](docs/metadata.md) | Sources, background queue, rate limits, local covers |
 | [Google Books API key](docs/google-books-api-key.md) · [Deutsch](docs/de/google-books-api-key.md) | Free key for complete book data |
 | [Loans & push reminders](docs/loans-and-reminders.md) | Library defaults, Web Push, iOS |

@@ -47,6 +47,7 @@ export function compareNewest(a, b) {
 
 export function coverUrl(book) {
   if (!book) return null
+  if (book.cover_src !== undefined) return book.cover_src // e.g. public wishlist: cover under the share link
   if (book.id) {
     if (book.has_cover === false) return null // known: no cover anywhere -> placeholder without request
     return new URL(`api/v1/books/${book.id}/cover?v=${book.cover_version ?? ''}`, document.baseURI).href

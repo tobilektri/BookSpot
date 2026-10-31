@@ -34,7 +34,9 @@ alle im Haushalt gerade lesen.
 - 👪 **Ein Katalog, private Lesedaten**: Alle im Haushalt sehen dieselben Bücher und Regale;
   Lesestatus, Bewertung, Fortschritt und Notizen hat jede Person für sich.
 - ⏰ **Bibliotheks-Ausleihen** mit Standard-Leihfrist und **Push-Erinnerung** 3 Tage und 1 Tag vor der Rückgabe.
-- 📈 **Statistik**: Bücher und Seiten pro Monat und Jahr, Genres, Lesetempo, Top-Autor:innen.
+- 🎁 **Wunschliste**: privat, mit allen auf der Instanz geteilt oder per öffentlichem Link (Geschenkideen);
+  „Gekauft“ oder „Ausgeliehen“ übernimmt das Buch in die Sammlung.
+- 📈 **Statistik**: Bücher und Seiten pro Monat und Jahr, Genres, Lesetempo, Top-Autor:innen – auch mehrfach gelesene Bücher.
 - 📥 **Bookstats-CSV-Import** (auch Goodreads/generisch) inkl. Standort-Codes, dazu CSV-Export.
 - 📱 **Installierbare PWA**, offline nutzbar, hell und dunkel, deutsche und englische Oberfläche.
 - 🔒 **Selbst gehostet & privat**: kein Tracking, Cover liegen auf deinem Server, der Browser spricht
@@ -111,6 +113,7 @@ Die ausführlichen Anleitungen sind auf Englisch; die Installation und der Googl
 | [Scannen & Stapel-Scan](docs/scanning.md) | Kamera, Scanner, Stapel-Modus, Offline-Scans |
 | [Regale & Fächer](docs/shelves.md) | Regalmodell, Editor, Drag & Drop, Standort-Codes |
 | [Import & Export](docs/import-export.md) | Bookstats-/Goodreads-CSV, Spalten, Duplikate |
+| [Wunschliste & mehrmals lesen](docs/wishlist.md) | Private oder geteilte Wunschlisten, öffentlicher Link, Bücher erneut lesen |
 | [Buchdaten & Cover](docs/metadata.md) | Quellen, Warteschlange, Rate-Limits, lokale Cover |
 | [Google-Books-API-Key](docs/de/google-books-api-key.md) · [English](docs/google-books-api-key.md) | Kostenloser Key für vollständige Buchdaten |
 | [Ausleihen & Push-Erinnerungen](docs/loans-and-reminders.md) | Bibliothek, Web Push, iOS |

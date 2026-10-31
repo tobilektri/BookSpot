@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle, RotateCcw, History, Plus, X, Camera } from '@lucide/vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle, RotateCcw, History, Plus, X, Camera, Gift, ShoppingBag, Library } from '@lucide/vue'
 import { api } from '../lib/api.js'
 import { t, errorMessage, fieldError } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
@@ -18,6 +18,7 @@ import LocationPicker from '../components/LocationPicker.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
+const route = useRoute()
 
 const book = ref(null)
 const error = ref('')
@@ -52,6 +53,11 @@ async function load() {
     }
   }
   if (book.value) resetPersonal()
+  // Just bought from the wishlist: ask for its place right away.
+  if (book.value && route.query.place && book.value.entry_type === 'owned' && !book.value.shelf_id) {
+    router.replace({ query: {} })
+    openMove()
+  }
   // Bulk scan placeholder: show the title as soon as the metadata queue found it.
   clearTimeout(pendingTimer)
   if (book.value?.metadata_status === 'pending' && !dirty.value) pendingTimer = setTimeout(load, 4000)
@@ -100,6 +106,42 @@ const saveDetails = () =>
     finished_at: personal.finished_at || null,
     notes: personal.notes,
   })
+
+// ---- wishlist
+async function addToWishlist() {
+  try {
+    await api('v1/wishlist', { method: 'POST', body: { book_id: book.value.id } })
+    book.value = { ...book.value, wished: true }
+    toast(t('wishlist.added'), 'success')
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+async function removeFromWishlist() {
+  try {
+    await api(`v1/wishlist/${book.value.id}`, { method: 'DELETE' })
+    toast(t('wishlist.removed'), 'success')
+    if (book.value.wishlist) router.replace('/wishlist')
+    else book.value = { ...book.value, wished: false }
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+/** Bought or borrowed: the book joins the collection; a bought one gets its place right away. */
+async function fulfil(type) {
+  try {
+    const result = await api(`v1/wishlist/${book.value.id}/fulfil`, { method: 'POST', body: { entry_type: type } })
+    book.value = { ...result.book, wished: false }
+    patchBook(book.value)
+    resetPersonal()
+    toast(t(type === 'owned' ? 'wishlist.bought' : 'wishlist.borrowed'), 'success')
+    if (type === 'owned') openMove()
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
 
 // ---- own cover (photo) for books no source has a cover for
 const uploadingCover = ref(false)
@@ -303,14 +345,27 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             <RouterLink :to="`/books/${book.id}/edit`" class="font-medium underline">{{ t('batch.fillIn') }}</RouterLink>
           </p>
           <div class="mt-2 flex flex-wrap gap-2 text-xs">
-            <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ t(`entry.${book.entry_type}`) }}</span>
+            <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ t(book.wishlist ? 'entry.wishlist' : `entry.${book.entry_type}`) }}</span>
             <span v-if="book.genre" class="rounded-full bg-stone-200 px-2 py-0.5 dark:bg-stone-800">{{ book.genre }}</span>
             <span v-if="book.status !== 'active'" class="rounded-full bg-stone-800 px-2 py-0.5 text-white">{{ t(book.status === 'returned' ? 'book.statusReturned' : 'book.statusDiscarded') }}</span>
             <span v-if="offlineCopy" class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">Offline</span>
           </div>
 
+          <!-- Wished-only book: not part of the collection -->
+          <div v-if="book.wishlist" class="mt-4 rounded-xl bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+            <div class="flex items-center gap-2">
+              <Gift class="h-5 w-5 text-brand-600" />
+              <span class="flex-1 font-medium">{{ t(book.wished ? 'wishlist.onMyList' : 'wishlist.onSharedList') }}</span>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button class="btn-primary !py-1.5" :disabled="!store.online" @click="fulfil('owned')"><ShoppingBag class="h-4 w-4" />{{ t('wishlist.markBought') }}</button>
+              <button class="btn-secondary !py-1.5" :disabled="!store.online" @click="fulfil('library_loan')"><Library class="h-4 w-4" />{{ t('wishlist.markBorrowed') }}</button>
+              <button v-if="book.wished" class="btn-ghost !py-1.5 text-sm" :disabled="!store.online" @click="removeFromWishlist">{{ t('wishlist.remove') }}</button>
+            </div>
+          </div>
+
           <!-- Location (owned books) -->
-          <div v-if="book.entry_type === 'owned'" class="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+          <div v-else-if="book.entry_type === 'owned'" class="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
             <MapPin class="h-5 w-5 text-brand-600" />
             <div class="min-w-0 flex-1">
               <div class="text-xs text-stone-500">{{ t('book.location') }}</div>
@@ -345,8 +400,18 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             </div>
           </div>
 
+          <!-- Wish for a book of the catalogue (e.g. read from the library, want to own it) -->
+          <div v-if="!book.wishlist && (book.wished || book.entry_type !== 'owned' || book.status !== 'active')" class="mt-2 flex items-center gap-2 text-sm">
+            <Gift class="h-4 w-4 text-stone-500" />
+            <template v-if="book.wished">
+              <span class="flex-1">{{ t('wishlist.onMyList') }}</span>
+              <button class="btn-ghost !py-1 text-sm" :disabled="!store.online" @click="removeFromWishlist">{{ t('wishlist.remove') }}</button>
+            </template>
+            <button v-else class="btn-ghost !px-1 !py-1 text-sm" :disabled="!store.online" @click="addToWishlist">{{ t('wishlist.add') }}</button>
+          </div>
+
           <!-- Lending own books to someone -->
-          <div v-if="book.entry_type === 'owned'" class="mt-2 flex items-center gap-2 text-sm">
+          <div v-if="book.entry_type === 'owned' && !book.wishlist" class="mt-2 flex items-center gap-2 text-sm">
             <Users class="h-4 w-4 text-stone-500" />
             <template v-if="book.lent_to">
               <span class="flex-1 text-amber-800 dark:text-amber-300">{{ t('book.lentTo') }} <strong>{{ book.lent_to }}</strong><span v-if="book.lent_at"> · {{ formatDate(book.lent_at) }}</span></span>
@@ -358,7 +423,7 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
       </section>
 
       <!-- Personal reading data -->
-      <section class="card space-y-4">
+      <section v-if="!book.wishlist" class="card space-y-4">
         <h2 class="flex items-center gap-2 font-semibold"><BookOpen class="h-5 w-5 text-brand-600" />{{ t('book.personal') }}</h2>
         <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:grid-cols-4 dark:bg-stone-800">
           <button
