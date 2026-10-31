@@ -17,6 +17,8 @@ like title, author, ISBN works – e.g. a **Goodreads** export or a spreadsheet 
    - **Overwrite existing reading data** – otherwise your existing status/rating/dates win.
    - **Take the location of existing books from the CSV** – otherwise books that already have a
      place keep it.
+   - **Take over loans from the CSV** – for books imported before 1.8 as “own book” although the CSV
+     says `Leihe` (see below). Books with a shelf place and types changed by hand stay as they are.
 4. Run the import. Afterwards the app offers to **fill in covers and descriptions** for the new books
    (rate-limited, in small batches – you can keep using the app meanwhile).
 
@@ -33,12 +35,19 @@ Column names are matched case- and accent-insensitively in German and English:
 | Genre | `Genre`, fallback `Kategorie`/`Category` – Amazon category IDs and junk like “Taschenbücher”, “Top100” are dropped (`IMPORT_GENRE_BLOCKLIST` adds more) |
 | Format, price, acquired | `Buchart`/`Binding`, `Preis`/`Price`, `Erhalten am`/`Date Added` |
 | Reading status, start, end, rating | `Lesestatus`/`Exclusive Shelf`, `Lesebeginn`, `Leseende`/`Date Read`, `Bewertung`/`My Rating` |
+| Type | `Erhalten als`/`Source`: `Leihe`, `Bibliothek`, `Onleihe` → library loan; `Ausleihe`, `geliehen` → borrowed from a person; anything else (`Kauf`, `Geschenk` …) → own book |
 | Location | `Standort`/`Location`/`Shelf` – or a code like `L2` inside the notes |
 | Notes | `Notizen`/`Notes`/`Private Notes` (minus the location code) |
 
 Catalogue fields go into the shared catalogue; **reading status, rating, dates and notes belong to
 the person who imports**. Several people can import their own CSV (or the same one) to bring in their
 own reading history.
+
+### Library loans
+
+A library loan from the CSV is borrowed on its `Erhalten am` date and due after your default loan period
+(*Settings → My library*; without one: 21 days, as with the Onleihe). Loans that are already due are
+imported as **returned** – e-book loans end by themselves, so no reminder is sent for them.
 
 ### Duplicates
 

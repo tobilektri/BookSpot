@@ -123,7 +123,88 @@ final class ImportTest extends TestCase
         self::assertSame(4, BookImporter::rating('4'));
         self::assertSame(4, BookImporter::rating('8'));
         self::assertSame('library_loan', BookImporter::entryType('Bibliothek'));
+        self::assertSame('library_loan', BookImporter::entryType('Leihe'));
+        self::assertSame('personal_loan', BookImporter::entryType('Ausleihe'));
         self::assertSame('owned', BookImporter::entryType('Kauf'));
+    }
+
+    public function testLibraryLoansFromBookstats(): void
+    {
+        // App clock: 2026-10-09. Default loan period of this user: 21 days (Onleihe).
+        $user = $this->createUser();
+        $this->db->update('users', ['library_name' => 'Onleihe', 'library_loan_days' => 21], ['id' => $user['id']]);
+        $summary = $this->importCsv($user['id'], [
+            ['Altes E-Book', '9783000001017', 'Leihe', '01.08.2026'],
+            ['Aktuelle Leihe', '9783000001024', 'Leihe', '01.10.2026'],
+            ['Von Anna', '9783000001031', 'Ausleihe', '01.10.2026'],
+            ['Gekauft', '9783000001048', 'Kauf', '01.08.2026'],
+        ]);
+        self::assertSame(4, $summary['created']);
+
+        $old = $this->bookByTitle('Altes E-Book');
+        self::assertSame(['library_loan', 'Onleihe', '2026-08-01', '2026-08-22', 'returned', $user['id']],
+            [$old['entry_type'], $old['loan_from'], $old['loan_start'], $old['loan_due'], $old['status'], (int) $old['loan_user_id']]);
+        $current = $this->bookByTitle('Aktuelle Leihe');
+        self::assertSame(['2026-10-22', 'active'], [$current['loan_due'], $current['status']], 'still running: reminders as usual');
+        self::assertSame('personal_loan', $this->bookByTitle('Von Anna')['entry_type']);
+        self::assertSame(['owned', null], [$this->bookByTitle('Gekauft')['entry_type'], $this->bookByTitle('Gekauft')['loan_due']]);
+    }
+
+    public function testLibraryLoansUseThreeWeeksWithoutUserSetting(): void
+    {
+        $user = $this->createUser();
+        $this->importCsv($user['id'], [['E-Book', '9783000001017', 'Leihe', '01.10.2026']]);
+        self::assertSame('2026-10-22', $this->bookByTitle('E-Book')['loan_due']);
+    }
+
+    public function testReimportTakesOverLoansOfBooksImportedAsOwn(): void
+    {
+        $user = $this->createUser();
+        $rows = [
+            ['Altes E-Book', '9783000001017', 'Leihe', '01.08.2026'],
+            ['Im Regal', '9783000001024', 'Leihe', '01.08.2026'],
+            ['Selbst geändert', '9783000001031', 'Leihe', '01.08.2026'],
+        ];
+        // As older versions imported them: own books ("Leihe" was not recognised).
+        foreach ($rows as [$title, $isbn]) {
+            $this->db->insert('books', ['title' => $title, 'isbn13' => $isbn, 'entry_type' => 'owned', 'acquired_at' => '2026-08-01',
+                'created_at' => '2026-09-01 10:00:00', 'updated_at' => '2026-09-01 10:00:00']);
+        }
+        $shelf = (new ShelfService($this->db))->create(['name' => 'Regal', 'columns' => [['label' => 'L', 'rows' => ['L1']]]]);
+        $this->db->update('books', ['shelf_id' => $shelf['id'], 'shelf_col' => 0, 'shelf_row' => 0], ['isbn13' => '9783000001024']);
+        $this->db->update('books', ['entry_type' => 'personal_loan'], ['isbn13' => '9783000001031']);
+
+        $without = $this->importCsv($user['id'], $rows);
+        self::assertSame(0, $without['loans_taken_over'], 'only with the option');
+        self::assertSame('owned', $this->bookByTitle('Altes E-Book')['entry_type']);
+
+        $with = $this->importCsv($user['id'], $rows, ['take_over_loans' => true]);
+        self::assertSame(1, $with['loans_taken_over']);
+        $book = $this->bookByTitle('Altes E-Book');
+        self::assertSame(['library_loan', '2026-08-01', '2026-08-22', 'returned'], [$book['entry_type'], $book['loan_start'], $book['loan_due'], $book['status']]);
+        self::assertSame('owned', $this->bookByTitle('Im Regal')['entry_type'], 'a shelved book stays an own book');
+        self::assertSame('personal_loan', $this->bookByTitle('Selbst geändert')['entry_type'], 'types changed by hand stay');
+    }
+
+    /** @param list<array{0: string, 1: string, 2: string, 3: string}> $books title, ISBN, "Erhalten als", "Erhalten am" */
+    private function importCsv(int $userId, array $books, array $options = []): array
+    {
+        $file = tempnam(sys_get_temp_dir(), 'bookspot-csv');
+        $lines = ['"Titel";"Autor(en)";"ISBN";"Erhalten als";"Lesestatus";"Erhalten am"'];
+        foreach ($books as [$title, $isbn, $via, $date]) {
+            $lines[] = "\"$title\";\"Autorin\";\"$isbn\";\"$via\";\"Gelesen\";\"$date\"";
+        }
+        file_put_contents($file, implode("\n", $lines) . "\n");
+        try {
+            return (new BookImporter($this->db, $userId, $options))->import((new CsvReader())->parseFile($file));
+        } finally {
+            unlink($file);
+        }
+    }
+
+    private function bookByTitle(string $title): array
+    {
+        return $this->db->one('SELECT * FROM books WHERE title = ?', [$title]) ?? [];
     }
 
     private function runImport(int $userId, array $options = []): array
