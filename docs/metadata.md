@@ -97,6 +97,10 @@ folder in your backups.
   scaled down to 600 px height when GD is available.
 - They are served by `GET /api/v1/books/{id}/cover` with long-lived browser caching and an ETag; the
   service worker keeps them for offline use.
+- **Own cover**: when no source has one, take a photo of the book (or choose an image) in the book
+  view – *Photograph cover*. The phone scales it down before uploading, the server checks and stores it
+  like a downloaded cover and never replaces it with one from the sources. The filter **“No cover”** in
+  the book list shows the books still missing one.
 - Not found → the app draws a coloured placeholder cover with title and author. Temporary errors are
   retried after an hour; “no cover anywhere” after 30 days.
 - The cron job downloads covers ahead of time (`CRON_COVER_BATCH`), so lists load fast.

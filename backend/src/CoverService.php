@@ -21,6 +21,7 @@ namespace BookSpot;
 final class CoverService
 {
     private const MAX_BYTES = 4 * 1024 * 1024;
+    private const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
     private const MAX_HEIGHT = 600;
     private const RETRY_ERROR_MINUTES = 60;
     private const RETRY_NONE_DAYS = 30;
@@ -52,10 +53,41 @@ final class CoverService
         return $dir;
     }
 
-    /** Version string for the cover URL: changes when the source of the cover changes. */
+    /** Version string for the cover URL: changes when the source of the cover changes (or a photo is uploaded). */
     public static function version(array $book): string
     {
-        return substr(md5((string) ($book['cover_url'] ?? '') . '|' . ($book['isbn13'] ?? '')), 0, 8);
+        $source = (string) ($book['cover_url'] ?? '') . '|' . ($book['isbn13'] ?? '');
+        if (!empty($book['cover_uploaded_at'])) {
+            $source .= '|' . $book['cover_uploaded_at'];
+        }
+        return substr(md5($source), 0, 8);
+    }
+
+    /**
+     * Own cover (photo or image file) for books no source has a cover for. It is
+     * validated and scaled like downloaded covers and never replaced by them.
+     *
+     * @throws ApiException invalid_image
+     */
+    public function upload(int $bookId, string $path): void
+    {
+        $this->db->one('SELECT id FROM books WHERE id = ?', [$bookId]) ?? throw ApiException::notFound('book_not_found');
+        $body = is_file($path) && filesize($path) <= self::MAX_UPLOAD_BYTES ? (string) file_get_contents($path) : '';
+        $stored = $body === '' ? null : $this->store($bookId, $body, self::MAX_UPLOAD_BYTES);
+        if ($stored === null) {
+            throw new ApiException('invalid_image', 422);
+        }
+        $now = App::nowString();
+        $this->db->update('books', [
+            'cover_file' => $stored, 'cover_status' => 'ok', 'cover_checked_at' => $now, 'cover_uploaded_at' => $now, 'updated_at' => $now,
+        ], ['id' => $bookId]);
+    }
+
+    /** Removes an uploaded cover; the cover sources are asked again. */
+    public function removeUpload(int $bookId): void
+    {
+        $this->forget($bookId);
+        $this->db->update('books', ['cover_uploaded_at' => null, 'updated_at' => App::nowString()], ['id' => $bookId]);
     }
 
     /**
@@ -172,7 +204,7 @@ final class CoverService
         if (is_string($file) && $file !== '') {
             @unlink(self::dir() . '/' . basename($file));
         }
-        $this->db->run('UPDATE books SET cover_file = NULL, cover_status = NULL, cover_checked_at = NULL WHERE id = ?', [$bookId]);
+        $this->db->run('UPDATE books SET cover_file = NULL, cover_status = NULL, cover_checked_at = NULL, cover_uploaded_at = NULL WHERE id = ?', [$bookId]);
     }
 
     /** @return list<string> */
@@ -255,9 +287,9 @@ final class CoverService
      * Validates the image and stores it (downscaled to MAX_HEIGHT as JPEG when GD
      * is available). Returns the file name or null for invalid images.
      */
-    private function store(int $bookId, string $body): ?string
+    private function store(int $bookId, string $body, int $maxBytes = self::MAX_BYTES): ?string
     {
-        if (strlen($body) > self::MAX_BYTES) {
+        if (strlen($body) > $maxBytes) {
             return null;
         }
         $info = @getimagesizefromstring($body);

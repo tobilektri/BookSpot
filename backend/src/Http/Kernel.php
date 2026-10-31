@@ -101,6 +101,8 @@ final class Kernel
                 $r->post('/books/{id:\d+}/reads', [BookController::class, 'addRead']);
                 $r->post('/books/{id:\d+}/read-again', [BookController::class, 'readAgain']);
                 $r->delete('/books/{id:\d+}/reads/{read:\d+}', [BookController::class, 'deleteRead']);
+                $r->post('/books/{id:\d+}/cover', [CoverController::class, 'upload'])->middleware(new RateLimit('cover_upload', 30, 60));
+                $r->delete('/books/{id:\d+}/cover', [CoverController::class, 'removeUpload']);
                 $r->get('/covers/preview', [CoverController::class, 'preview'])->middleware(new RateLimit('cover_preview', 60, 60));
 
                 $r->get('/shelves', [ShelfController::class, 'index']);
