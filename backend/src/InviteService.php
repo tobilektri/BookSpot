@@ -48,7 +48,7 @@ final class InviteService
             [$subject, $body] = self::message($user, (string) ($admin['username'] ?? ''), $link, $expires);
             $sent = Mailer::send((string) $user['email'], $subject, $body);
             if (!$sent) {
-                error_log('[BookSpot] Invitation mail to user #' . $userId . ' could not be sent');
+                App::log('[BookSpot] Invitation mail to user #' . $userId . ' could not be sent');
             }
         }
         return ['link' => $link, 'expires_at' => $expires, 'mail_sent' => $sent, 'mail_available' => Mailer::available(), 'email' => (string) $user['email']];

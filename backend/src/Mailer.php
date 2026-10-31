@@ -56,7 +56,7 @@ final class Mailer
             // -f sets the envelope sender; many hosts reject mails without a matching one.
             return @mail($to, $encodedSubject, $body, $headers, '-f' . $fromAddress);
         } catch (\Throwable $e) {
-            error_log('[BookSpot] mail() failed: ' . $e->getMessage());
+            App::log('[BookSpot] mail() failed: ' . $e->getMessage());
             return false;
         }
     }

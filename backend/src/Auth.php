@@ -117,7 +117,7 @@ final class Auth
         $_SESSION['impersonator_id'] = (int) $admin['id'];
         $_SESSION['uid'] = (int) $target['id'];
         self::$currentUser = $target;
-        error_log(sprintf('[BookSpot] Admin #%d (%s) impersonates user #%d (%s)', $admin['id'], $admin['username'], $target['id'], $target['username']));
+        App::log(sprintf('[BookSpot] Admin #%d (%s) impersonates user #%d (%s)', $admin['id'], $admin['username'], $target['id'], $target['username']));
         return $target;
     }
 

@@ -24,7 +24,7 @@ final class ExportController extends Controller
             try {
                 (new ExportService($db))->writeCsv($user['id'], fopen('php://output', 'w'));
             } catch (\Throwable $e) {
-                error_log('[BookSpot] export failed: ' . $e->getMessage());
+                App::log('[BookSpot] export failed: ' . $e->getMessage());
                 echo "\nExport failed";
             }
         });

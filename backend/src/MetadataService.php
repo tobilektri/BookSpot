@@ -579,7 +579,7 @@ final class MetadataService
         } catch (MetadataUnavailable $e) {
             if ($e->status === 429) {
                 $seconds = $this->limiter->penalize($provider, $e->retryAfter);
-                error_log("[BookSpot] $provider answered 429 – paused for {$seconds}s");
+                App::log("[BookSpot] $provider answered 429 – paused for {$seconds}s");
             }
             throw $e;
         }
@@ -616,25 +616,19 @@ final class MetadataService
             $retryAfter = null;
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-            curl_close($ch);
             return self::interpret(is_string($body) ? $body : null, $status, $retryAfter);
         }
-        $context = stream_context_create(['http' => [
+        $response = HttpStream::get($url, [
             'timeout' => self::TIMEOUT,
             'header' => "User-Agent: $userAgent\r\nAccept: $accept\r\n",
-            'ignore_errors' => true,
-        ]]);
-        $body = @file_get_contents($url, false, $context);
-        $status = 0;
+        ]);
         $retryAfter = null;
-        foreach ($http_response_header ?? [] as $header) {
-            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m)) {
-                $status = (int) $m[1];
-            } elseif (preg_match('/^Retry-After:\s*(\d+)/i', $header, $m)) {
+        foreach ($response['headers'] as $header) {
+            if (preg_match('/^Retry-After:\s*(\d+)/i', $header, $m)) {
                 $retryAfter = (int) $m[1];
             }
         }
-        return self::interpret($body === false ? null : $body, $status, $retryAfter);
+        return self::interpret($response['body'], $response['status'], $retryAfter);
     }
 
     private static function interpret(?string $body, int $status, ?int $retryAfter = null): ?string

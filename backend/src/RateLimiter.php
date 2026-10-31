@@ -183,7 +183,7 @@ final class RateLimiter
     {
         $handle = @fopen(self::file($key), 'c+');
         if ($handle === false) {
-            error_log('[BookSpot] rate limiter: var/ratelimit is not writable');
+            App::log('[BookSpot] rate limiter: var/ratelimit is not writable');
             return $fallback;
         }
         try {

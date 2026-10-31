@@ -378,20 +378,17 @@ final class CoverService
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             $location = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
-            curl_close($ch);
             if ($status >= 300 && $status < 400 && $location !== '') {
                 return $redirects > 0 ? $this->download($location, $redirects - 1) : ['status' => -1, 'body' => null];
             }
             return ['status' => is_string($body) ? $status : 0, 'body' => is_string($body) ? $body : null];
         }
-        $context = stream_context_create(['http' => ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'ignore_errors' => true, 'follow_location' => 0]]);
-        $body = @file_get_contents($url, false, $context);
-        $status = 0;
+        $response = HttpStream::get($url, ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'follow_location' => 0]);
+        $status = $response['status'];
+        $body = $response['body'];
         $location = '';
-        foreach ($http_response_header ?? [] as $header) {
-            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m)) {
-                $status = (int) $m[1];
-            } elseif (stripos($header, 'Location:') === 0) {
+        foreach ($response['headers'] as $header) {
+            if (stripos($header, 'Location:') === 0) {
                 $location = trim(substr($header, 9));
             }
         }
@@ -401,6 +398,6 @@ final class CoverService
             }
             return $redirects > 0 ? $this->download($location, $redirects - 1) : ['status' => -1, 'body' => null];
         }
-        return ['status' => $body === false ? 0 : $status, 'body' => $body === false ? null : $body];
+        return ['status' => $status, 'body' => $body];
     }
 }
