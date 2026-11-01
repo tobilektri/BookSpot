@@ -334,6 +334,14 @@ final class Auth
                 throw new ApiException('last_admin', 409);
             }
             $this->db->run('DELETE FROM users WHERE id = ?', [$id]);
+            // Wished-only books nobody wishes for any more (the wishes went with the user).
+            $orphans = $this->db->all('SELECT id, cover_file FROM books b WHERE b.wishlist = 1 AND NOT EXISTS (SELECT 1 FROM wishes w WHERE w.book_id = b.id)');
+            foreach ($orphans as $orphan) {
+                $this->db->run('DELETE FROM books WHERE id = ?', [(int) $orphan['id']]);
+                if (!empty($orphan['cover_file'])) {
+                    @unlink(CoverService::dir() . '/' . basename((string) $orphan['cover_file']));
+                }
+            }
         });
     }
 

@@ -143,9 +143,9 @@ final class StatsService
             ],
             'top_authors' => $authors,
             'loans' => [
-                'library_active' => (int) $this->db->value("SELECT COUNT(*) FROM books WHERE status = 'active' AND entry_type = 'library_loan'"),
-                'personal_active' => (int) $this->db->value("SELECT COUNT(*) FROM books WHERE status = 'active' AND entry_type = 'personal_loan'"),
-                'lent_out' => (int) $this->db->value("SELECT COUNT(*) FROM books WHERE status = 'active' AND lent_to IS NOT NULL AND lent_to <> ''"),
+                'library_active' => (int) $this->db->value("SELECT COUNT(*) FROM books WHERE status = 'active' AND wishlist = 0 AND entry_type = 'library_loan'"),
+                'personal_active' => (int) $this->db->value("SELECT COUNT(*) FROM books WHERE status = 'active' AND wishlist = 0 AND entry_type = 'personal_loan'"),
+                'lent_out' => (int) $this->db->value("SELECT COUNT(*) FROM books WHERE status = 'active' AND wishlist = 0 AND lent_to IS NOT NULL AND lent_to <> ''"),
             ],
         ];
     }

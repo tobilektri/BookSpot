@@ -162,6 +162,77 @@ final class WishlistTest extends TestCase
         self::assertSame([], $this->wishes->mine($this->anna['id'])['items']);
     }
 
+    public function testOnlyThePeopleWhoWishForABookMayChangeIt(): void
+    {
+        $private = $this->wish('Annas Geheimnis', '9783548283951');
+        $id = (int) $private['id'];
+        $ben = $this->ben['id'];
+        $attempts = [
+            'update' => fn () => $this->books->update($id, ['title' => 'pwned'], $ben),
+            'delete' => fn () => $this->books->delete($id, $ben),
+            'personal' => fn () => (new \BookSpot\UserBookService($this->db))->upsert($ben, $id, ['reading_status' => 'read']),
+            'read' => fn () => (new \BookSpot\ReadHistoryService($this->db))->add($ben, $id, ['finished_at' => '2026-01-01']),
+            'fulfil' => fn () => $this->wishes->fulfil($ben, $id, 'owned'),
+        ];
+        foreach ($attempts as $name => $attempt) {
+            try {
+                $attempt();
+                self::fail("$name must be refused");
+            } catch (ApiException $e) {
+                self::assertSame(404, $e->getCode(), "$name: private wishes don't exist for others");
+            }
+        }
+        self::assertSame(0, $this->books->move([$id], null, null, null), 'never moved onto a shelf');
+        self::assertSame('Annas Geheimnis', $this->books->get($id, $this->anna['id'])['title']);
+
+        // Shared with the instance: Ben may look and buy it as a gift, but not change it.
+        $this->wishes->share($this->anna['id'], 'instance');
+        foreach (['update', 'delete', 'personal', 'read'] as $name) {
+            try {
+                $attempts[$name]();
+                self::fail("$name must be refused");
+            } catch (ApiException $e) {
+                self::assertSame(403, $e->getCode(), $name);
+            }
+        }
+        self::assertArrayNotHasKey('created_by_name', $this->books->get($id, $ben), 'who wished for it stays private');
+        self::assertSame('owned', $this->wishes->fulfil($ben, $id, 'owned')['entry_type'], 'gift bought');
+    }
+
+    public function testFulfilNeedsAWish(): void
+    {
+        $loan = $this->books->create(['title' => 'Annas Ausleihe', 'isbn' => '9783548283951', 'entry_type' => 'library_loan', 'loan_due' => '2026-11-30'], $this->anna['id']);
+        $this->notFound(fn () => $this->wishes->fulfil($this->ben['id'], $loan['id'], 'owned'));
+        self::assertSame('library_loan', $this->books->get($loan['id'], $this->anna['id'])['entry_type']);
+    }
+
+    public function testWishedBooksStayOffShelvesLoansAndHiddenIdsStayHidden(): void
+    {
+        $private = $this->wish('Annas Geheimnis', '9783548283951');
+        $this->db->update('books', ['entry_type' => 'library_loan', 'status' => 'active', 'loan_due' => App::today()], ['id' => $private['id']]);
+        self::assertSame([], $this->books->dueLoans($this->ben['id']));
+        self::assertSame(0, (new StatsService($this->db))->forUser($this->ben['id'])['loans']['library_active']);
+
+        $own = $this->books->create(['title' => 'Bens Buch', 'isbn' => '9783404139873'], $this->ben['id']);
+        try {
+            $this->books->update($own['id'], ['isbn' => '9783548283951'], $this->ben['id']);
+            self::fail('duplicate');
+        } catch (ApiException $e) {
+            self::assertSame('duplicate_isbn', $e->getMessage());
+            self::assertArrayNotHasKey('book_id', $e->details, 'no hint at the private wish');
+        }
+    }
+
+    public function testDeletingAUserRemovesTheirOrphanedWishes(): void
+    {
+        $orphan = $this->wish('Nur Ben', '9783548283951', $this->ben);
+        $shared = $this->wish('Beide', '9783404139873', $this->ben);
+        $this->wish('Beide', '9783404139873');
+        (new \BookSpot\Auth($this->db))->deleteUser($this->anna['id'], $this->ben['id']);
+        self::assertNull($this->db->value('SELECT id FROM books WHERE id = ?', [$orphan['id']]));
+        self::assertNotNull($this->db->value('SELECT id FROM books WHERE id = ?', [$shared['id']]), 'Anna still wishes for it');
+    }
+
     public function testExportAndImportKeepTheWishlist(): void
     {
         $this->wish('Wunsch', '9783548283951');

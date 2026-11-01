@@ -168,7 +168,7 @@ final class ImportTest extends TestCase
         // As older versions imported them: own books ("Leihe" was not recognised).
         foreach ($rows as [$title, $isbn]) {
             $this->db->insert('books', ['title' => $title, 'isbn13' => $isbn, 'entry_type' => 'owned', 'acquired_at' => '2026-08-01',
-                'created_at' => '2026-09-01 10:00:00', 'updated_at' => '2026-09-01 10:00:00']);
+                'created_by' => $user['id'], 'created_at' => '2026-09-01 10:00:00', 'updated_at' => '2026-09-01 10:00:00']);
         }
         $shelf = (new ShelfService($this->db))->create(['name' => 'Regal', 'columns' => [['label' => 'L', 'rows' => ['L1']]]]);
         $this->db->update('books', ['shelf_id' => $shelf['id'], 'shelf_col' => 0, 'shelf_row' => 0], ['isbn13' => '9783000001024']);
@@ -184,6 +184,26 @@ final class ImportTest extends TestCase
         self::assertSame(['library_loan', '2026-08-01', '2026-08-22', 'returned'], [$book['entry_type'], $book['loan_start'], $book['loan_due'], $book['status']]);
         self::assertSame('owned', $this->bookByTitle('Im Regal')['entry_type'], 'a shelved book stays an own book');
         self::assertSame('personal_loan', $this->bookByTitle('Selbst geändert')['entry_type'], 'types changed by hand stay');
+
+        // A book somebody else added is never taken over.
+        $ben = $this->createUser('ben');
+        $this->db->insert('books', ['title' => 'Bens E-Book', 'isbn13' => '9783000001048', 'entry_type' => 'owned',
+            'created_by' => $ben['id'], 'created_at' => '2026-09-01 10:00:00', 'updated_at' => '2026-09-01 10:00:00']);
+        $this->importCsv($user['id'], [['Bens E-Book', '9783000001048', 'Leihe', '01.08.2026']], ['take_over_loans' => true]);
+        self::assertSame(['owned', 'active'], [$this->bookByTitle('Bens E-Book')['entry_type'], $this->bookByTitle('Bens E-Book')['status']]);
+    }
+
+    public function testImportingAWishedBookBringsItIntoTheCollection(): void
+    {
+        $anna = $this->createUser('anna');
+        $ben = $this->createUser('ben');
+        $books = new BookService($this->db, new ShelfService($this->db));
+        $wish = $books->create(['title' => 'Annas Wunsch', 'isbn' => '9783000001017', 'wishlist' => true], $anna['id']);
+
+        $summary = $this->importCsv($ben['id'], [['Annas Wunsch', '9783000001017', 'Kauf', '01.10.2026']]);
+        self::assertSame(1, $summary['updated']);
+        self::assertSame([$wish['id']], array_column($books->list([], $ben['id'])['items'], 'id'), 'visible in the collection now');
+        self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM wishes'));
     }
 
     /** @param list<array{0: string, 1: string, 2: string, 3: string}> $books title, ISBN, "Erhalten als", "Erhalten am" */

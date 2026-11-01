@@ -50,8 +50,7 @@ final class BookController extends Controller
 
     public function destroy(Request $request): array
     {
-        $this->user($request);
-        $this->books()->delete($this->id($request));
+        $this->books()->delete($this->id($request), $this->user($request)['id']);
         return ['ok' => true];
     }
 

@@ -37,7 +37,7 @@ final class ReadHistoryService
      */
     public function add(int $userId, int $bookId, array $input): array
     {
-        $this->book($bookId);
+        BookService::assertWritable($this->db, $bookId, $userId);
         $started = Dates::parse($input['started_at'] ?? null);
         $finished = Dates::parse($input['finished_at'] ?? null);
         $errors = [];
@@ -71,7 +71,7 @@ final class ReadHistoryService
      */
     public function readAgain(int $userId, int $bookId): array
     {
-        $this->book($bookId);
+        BookService::assertWritable($this->db, $bookId, $userId);
         $this->db->transaction(function () use ($userId, $bookId) {
             $current = $this->db->one('SELECT * FROM user_books WHERE user_id = ? AND book_id = ?', [$userId, $bookId]);
             if (($current['reading_status'] ?? null) !== 'read') {
@@ -100,11 +100,6 @@ final class ReadHistoryService
         }
         $this->touch($userId, $bookId);
         return $this->forUser($userId, $bookId)[$bookId] ?? [];
-    }
-
-    private function book(int $bookId): void
-    {
-        $this->db->one('SELECT id FROM books WHERE id = ?', [$bookId]) ?? throw ApiException::notFound('book_not_found');
     }
 
     /** Offline copies refresh the book (catalogue sync goes by updated_at). */

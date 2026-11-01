@@ -30,7 +30,7 @@ final class ReminderService
             $due = $today->modify("+$days days")->format('Y-m-d');
             $books = $this->db->all(
                 "SELECT id, title, loan_due, loan_from, loan_user_id, entry_type FROM books
-                 WHERE status = 'active' AND entry_type IN ('library_loan', 'personal_loan') AND loan_due = ?",
+                 WHERE status = 'active' AND wishlist = 0 AND entry_type IN ('library_loan', 'personal_loan') AND loan_due = ?",
                 [$due]
             );
             foreach ($books as $book) {

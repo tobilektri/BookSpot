@@ -122,8 +122,13 @@ final class WishlistService
         if (!in_array($type, ['owned', 'library_loan'], true)) {
             throw ApiException::validation(['entry_type' => 'invalid_choice']);
         }
-        $book = $this->db->one('SELECT id, wishlist, status FROM books WHERE id = ?', [$bookId]) ?? throw ApiException::notFound('book_not_found');
-        $this->books->get($bookId, $userId);
+        // Only a wish: a wished-only book the user can see (e.g. a gift from a shared list), or a
+        // book of the catalogue the user wishes for – never somebody else's loan or book.
+        $wishlist = $this->db->value('SELECT wishlist FROM books WHERE id = ?', [$bookId]);
+        $ownWish = $this->db->value('SELECT id FROM wishes WHERE user_id = ? AND book_id = ?', [$userId, $bookId]) !== null;
+        if ($wishlist === null || !($ownWish || (!empty($wishlist) && BookService::canSee($this->db, $bookId, $userId)))) {
+            throw ApiException::notFound('wish_not_found');
+        }
         $today = App::today();
         $input = ['entry_type' => $type, 'status' => 'active'];
         if ($type === 'owned') {
