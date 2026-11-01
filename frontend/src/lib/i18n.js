@@ -12,7 +12,7 @@ const de = {
     today: 'heute', update: 'Neue Version verfügbar', reload: 'Neu laden', select: 'Bitte wählen', moveTo: 'Verschieben nach …',
   },
   auth: {
-    login: 'Anmelden', register: 'Registrieren', logout: 'Abmelden', username: 'Benutzername', email: 'E-Mail',
+    login: 'Anmelden', register: 'Registrieren', logout: 'Abmelden', logoutOffline: 'Abmelden geht nur mit Internetverbindung – sonst bliebe die Anmeldung auf dem Server gültig.', logoutPending: '{n} Offline-Änderung(en) wurden noch nicht gesendet und gehen beim Abmelden verloren. Trotzdem abmelden?', username: 'Benutzername', email: 'E-Mail',
     password: 'Passwort', loginField: 'Benutzername oder E-Mail', setupTitle: 'Willkommen! Lege das erste Konto an.',
     setupHint: 'Das erste Konto wird Admin. Weitere Konten legst du danach unter Einstellungen → Benutzerverwaltung an.',
     noAccount: 'Noch kein Konto?', haveAccount: 'Schon registriert?', passwordHint: 'Mindestens 8 Zeichen',
@@ -296,6 +296,7 @@ const de = {
   sync: {
     done: '{n} Offline-Änderung(en) synchronisiert.', conflicts: '{n} Änderung(en) waren veraltet – neuere Daten vom Server behalten.',
     errors: '{n} Änderung(en) konnten nicht übernommen werden.', queued: 'Offline gespeichert – wird synchronisiert, sobald du online bist.',
+    droppedForeign: '{n} nicht gesendete Offline-Änderung(en) eines anderen Kontos wurden verworfen.',
   },
   errors: {
     offline: 'Keine Verbindung zum Server.', server_error: 'Serverfehler. Bitte später erneut versuchen.', request_failed: 'Anfrage fehlgeschlagen.',
@@ -336,7 +337,7 @@ const en = {
     update: 'New version available', reload: 'Reload', select: 'Please choose', moveTo: 'Move to …',
   },
   auth: {
-    login: 'Sign in', register: 'Create account', logout: 'Sign out', username: 'Username', email: 'Email', password: 'Password',
+    login: 'Sign in', register: 'Create account', logout: 'Sign out', logoutOffline: 'Signing out needs an internet connection – otherwise the session would stay valid on the server.', logoutPending: '{n} offline change(s) have not been sent yet and will be lost. Sign out anyway?', username: 'Username', email: 'Email', password: 'Password',
     loginField: 'Username or email', setupTitle: 'Welcome! Create the first account.',
     setupHint: 'The first account becomes admin. Create further accounts afterwards under Settings → User management.',
     noAccount: 'No account yet?', haveAccount: 'Already registered?', passwordHint: 'At least 8 characters',
@@ -619,6 +620,7 @@ const en = {
   sync: {
     done: '{n} offline change(s) synced.', conflicts: '{n} change(s) were outdated – kept newer server data.',
     errors: '{n} change(s) could not be applied.', queued: 'Saved offline – will sync when you are back online.',
+    droppedForeign: '{n} unsent offline change(s) of another account were discarded.',
   },
   errors: {
     offline: 'No connection to the server.', server_error: 'Server error. Please try again later.', request_failed: 'Request failed.',

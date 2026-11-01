@@ -10,6 +10,8 @@ import { flushScans } from './batch.js'
  * queue and replayed in order via api/v1/sync when the connection returns.
  */
 
+const SYNC_CHUNK = 200
+
 async function patchCachedBook(bookId, personalPatch, bookPatch = {}) {
   try {
     const cached = await db.books.get(bookId)
@@ -76,14 +78,20 @@ export function flushQueue() {
       const ops = await db.queue.orderBy('seq').toArray()
       if (!ops.length || !store.user) return
       store.syncing = true
-      const payload = ops.map(({ seq, ...op }) => op)
-      const result = await api('v1/sync', { method: 'POST', body: { ops: payload } })
-      const conflicts = result.results.filter((r) => r.status === 'conflict').length
-      const errors = result.results.filter((r) => r.status === 'error').length
-      await db.queue.bulkDelete(ops.map((o) => o.seq))
-      for (const r of result.results) {
-        const op = ops.find((o) => o.id === r.id)
-        if (op?.type === 'personal' && r.personal) await patchCachedBook(op.book_id, r.personal)
+      let conflicts = 0
+      let errors = 0
+      // In chunks: the server accepts at most 500 changes per request; each chunk leaves
+      // the queue once it went through, so a long offline phase never blocks the queue.
+      for (let i = 0; i < ops.length; i += SYNC_CHUNK) {
+        const chunk = ops.slice(i, i + SYNC_CHUNK)
+        const result = await api('v1/sync', { method: 'POST', body: { ops: chunk.map(({ seq, ...op }) => op) } })
+        conflicts += result.results.filter((r) => r.status === 'conflict').length
+        errors += result.results.filter((r) => r.status === 'error').length
+        await db.queue.bulkDelete(chunk.map((o) => o.seq))
+        for (const r of result.results) {
+          const op = chunk.find((o) => o.id === r.id)
+          if (op?.type === 'personal' && r.personal) await patchCachedBook(op.book_id, r.personal)
+        }
       }
       toast(t('sync.done', { n: ops.length }), 'success')
       if (conflicts) toast(t('sync.conflicts', { n: conflicts }), 'info', 6000)

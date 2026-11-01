@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
 import { api } from './api.js'
-import { cacheBooks, cachedBooks, getMeta, setMeta } from './db.js'
+import { db, cacheBooks, cachedBooks, getMeta, setMeta } from './db.js'
 import { store } from './store.js'
 
 /**
@@ -15,6 +15,14 @@ export const loading = ref(false)
 
 let pending = null
 let stale = true
+
+/** Forget the catalogue in memory (logout / other account). */
+export function resetCatalog() {
+  books.value = []
+  loadedAt.value = null
+  fromCache.value = false
+  stale = true
+}
 
 export function invalidateCatalog() {
   stale = true
@@ -36,6 +44,12 @@ export function loadCatalog({ force = false } = {}) {
     }
     try {
       const data = await api('v1/books', { query: { limit: 10000, compact: 1, sort: 'title' } })
+      if (!store.online && books.value.length) {
+        // Served by the service worker's cache: older than the IndexedDB copy, which
+        // already contains the changes made offline – keep that one.
+        fromCache.value = true
+        return books.value
+      }
       books.value = data.items
       fromCache.value = !store.online // served by the service worker cache
       if (store.online) {
@@ -70,6 +84,7 @@ export function patchBook(book) {
 
 export function removeBook(id) {
   books.value = books.value.filter((b) => b.id !== id)
+  db.books.delete(id).catch(() => {}) // or it comes back from the offline copy
 }
 
 /** Simple accent/case-insensitive matcher. */
