@@ -12,6 +12,7 @@ services:
       APP_ENV: ${APP_ENV:-production}
       APP_URL: ${APP_URL:-http://localhost:8080}
       CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       APP_NAME: ${APP_NAME:-}
       APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Berlin}
       DB_DRIVER: mysql
@@ -19,7 +20,8 @@ services:
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-bookspot}
       DB_USER: ${DB_USER:-bookspot}
-      DB_PASS: ${DB_PASS:-bookspot_pass}
+      # No defaults for passwords: compose stops with this message until they are set in .env.
+      DB_PASS: ${DB_PASS:?Set DB_PASS in .env}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
       SESSION_SECURE: ${SESSION_SECURE:-auto}
       CRON_TOKEN: ${CRON_TOKEN:-}
@@ -80,10 +82,10 @@ services:
     image: mariadb:11.4
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS:-root_secret_pass}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS:?Set DB_ROOT_PASS in .env}
       MARIADB_DATABASE: ${DB_NAME:-bookspot}
       MARIADB_USER: ${DB_USER:-bookspot}
-      MARIADB_PASSWORD: ${DB_PASS:-bookspot_pass}
+      MARIADB_PASSWORD: ${DB_PASS:?Set DB_PASS in .env}
     command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
     volumes:
       - mariadb_data:/var/lib/mysql

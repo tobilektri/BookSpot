@@ -64,7 +64,8 @@ final class PushService
         $endpoint = (string) ($input['endpoint'] ?? '');
         $p256dh = (string) ($input['keys']['p256dh'] ?? '');
         $auth = (string) ($input['keys']['auth'] ?? '');
-        if (!preg_match('#^https://#', $endpoint) || strlen($endpoint) > 2000 || $p256dh === '' || $auth === '') {
+        if (!preg_match('#^https://#', $endpoint) || strlen($endpoint) > 2000 || $p256dh === '' || $auth === ''
+            || !self::publicEndpoint($endpoint)) {
             throw ApiException::validation(['subscription' => 'invalid_subscription']);
         }
         $hash = hash('sha256', $endpoint);
@@ -90,6 +91,16 @@ final class PushService
     public function subscriptionCount(int $userId): int
     {
         return (int) $this->db->value('SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?', [$userId]);
+    }
+
+    /**
+     * Push endpoints are URLs of the browser vendors' push services. The server posts to
+     * them, so they must not point into the hoster's network (SSRF).
+     */
+    public static function publicEndpoint(string $endpoint): bool
+    {
+        $host = (string) parse_url($endpoint, PHP_URL_HOST);
+        return $host !== '' && NetworkGuard::isPublicHost($host);
     }
 
     /**
@@ -120,6 +131,12 @@ final class PushService
 
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         foreach ($subscriptions as $row) {
+            if (!self::publicEndpoint((string) $row['endpoint'])) {
+                // Checked again at sending time: the name could point elsewhere by now (DNS rebinding).
+                $this->db->run('DELETE FROM push_subscriptions WHERE endpoint_hash = ?', [$row['endpoint_hash']]);
+                $result['removed']++;
+                continue;
+            }
             $webPush->queueNotification(new Subscription($row['endpoint'], $row['public_key'], $row['auth_token'], 'aes128gcm'), $json);
         }
         foreach ($webPush->flush() as $report) {

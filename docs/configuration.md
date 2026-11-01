@@ -31,6 +31,7 @@ Tables are created and migrated automatically on the first request (`backend/mig
 | Setting | Default | |
 |---|---|---|
 | `ALLOW_REGISTRATION` | `false` | `true` shows a sign-up form on the login page (new accounts get the role *user*). The very first account can always be created and becomes admin. |
+| `TRUSTED_PROXIES` | – | Behind a reverse proxy: comma-separated addresses/CIDRs of the proxies (e.g. `172.16.0.0/12` for Docker). Only then the visitor's address is taken from `X-Forwarded-For` – login lockout and request limits work per visitor instead of hitting everybody at once. Never list addresses visitors can connect from directly. |
 | `SESSION_SECURE` | `auto` | `Secure` cookie flag: `auto` = when the request is HTTPS; `true` behind a TLS-terminating proxy. |
 | `SESSION_LIFETIME_DAYS` | `30` | How long you stay signed in. |
 | `MAIL_FROM` | `noreply@<host>` | Sender of invitation e-mails (PHP `mail()`). Use an address of your own domain, otherwise providers may reject the mail. |

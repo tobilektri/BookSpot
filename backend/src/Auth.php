@@ -386,7 +386,8 @@ final class Auth
             $update['password_hash'] = self::hash($password);
         }
         $this->db->update('users', $update, ['id' => (int) $row['id']]);
-        $this->db->run('DELETE FROM login_attempts WHERE ip = ? OR attempted_at < ?', [$ip, $since]);
+        // Only this account's failures – failed guesses at other accounts from the same address keep counting.
+        $this->db->run('DELETE FROM login_attempts WHERE (ip = ? AND username = ?) OR attempted_at < ?', [$ip, mb_substr($login, 0, 100), $since]);
 
         return self::publicUser($row);
     }
