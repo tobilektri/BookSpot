@@ -326,6 +326,7 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
         <div class="flex flex-col items-center gap-1 self-center sm:self-start">
           <BookCover :book="book" size="lg" />
           <label
+            v-if="!book.wishlist || book.wished"
             class="btn-ghost cursor-pointer !px-2 !py-1 text-xs"
             :class="{ 'pointer-events-none opacity-50': !store.online || uploadingCover }"
             :title="t('book.coverHint')"
@@ -514,7 +515,8 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
         <p v-if="book.created_by_name" class="mt-3 text-xs text-stone-500">{{ t('book.addedBy', { name: book.created_by_name }) }} · {{ formatDate(book.created_at) }}</p>
       </section>
 
-      <div class="flex gap-2">
+      <!-- Somebody else's shared wish: look, buy as a gift – but not change it -->
+      <div v-if="!book.wishlist || book.wished" class="flex gap-2">
         <RouterLink :to="`/books/${book.id}/edit`" class="btn-secondary flex-1"><Pencil class="h-4 w-4" />{{ t('common.edit') }}</RouterLink>
         <button class="btn-ghost text-red-600" :disabled="!store.online" @click="remove"><Trash2 class="h-4 w-4" />{{ t('common.delete') }}</button>
       </div>
