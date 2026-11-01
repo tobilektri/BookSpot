@@ -420,13 +420,13 @@ final class CoverService
             return null;
         }
         $port = (int) ($parts['port'] ?? ($scheme === 'https' ? 443 : 80));
-        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+        $ips = NetworkGuard::resolve($host); // A and AAAA – curl could otherwise pick an unchecked one
         if ($ips === []) {
             return null;
         }
         if (!Config::bool('COVER_ALLOW_PRIVATE_HOSTS', false)) {
             foreach ($ips as $ip) {
-                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                if (!NetworkGuard::isPublicIp($ip)) {
                     return null;
                 }
             }
@@ -456,17 +456,23 @@ final class CoverService
                 CURLOPT_USERAGENT => $userAgent,
                 CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
                 // Connect to the IP that was checked (no DNS rebinding between check and request).
-                CURLOPT_RESOLVE => [$target['host'] . ':' . $target['port'] . ':' . $target['ip']],
+                CURLOPT_RESOLVE => [$target['host'] . ':' . $target['port'] . ':' . (str_contains($target['ip'], ':') ? '[' . $target['ip'] . ']' : $target['ip'])],
+                // Never hold more than MAX_BYTES in memory, whatever the server sends.
+                CURLOPT_NOPROGRESS => false,
+                CURLOPT_XFERINFOFUNCTION => static fn ($ch, int $total, int $received): int => $received > self::MAX_BYTES ? 1 : 0,
             ]);
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             $location = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+            if (curl_errno($ch) === CURLE_ABORTED_BY_CALLBACK) {
+                return ['status' => -1, 'body' => null]; // larger than any cover: not worth retrying
+            }
             if ($status >= 300 && $status < 400 && $location !== '') {
                 return $redirects > 0 ? $this->download($location, $redirects - 1) : ['status' => -1, 'body' => null];
             }
             return ['status' => is_string($body) ? $status : 0, 'body' => is_string($body) ? $body : null];
         }
-        $response = HttpStream::get($url, ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'follow_location' => 0]);
+        $response = HttpStream::get($url, ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'follow_location' => 0], $target, self::MAX_BYTES);
         $status = $response['status'];
         $body = $response['body'];
         $location = '';

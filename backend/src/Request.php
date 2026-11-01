@@ -71,7 +71,33 @@ final class Request
         $path = $route ?? self::pathFromGlobals($query);
         unset($query['_route']);
 
-        return new self($method, $query, $body, $_FILES, $headers, (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'), $path);
+        $ip = self::clientIp((string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'), $headers['x-forwarded-for'] ?? null);
+        return new self($method, $query, $body, $_FILES, $headers, $ip, $path);
+    }
+
+    /**
+     * Address of the visitor. Behind a reverse proxy (Docker setup with Caddy, Cloudflare …)
+     * REMOTE_ADDR is the proxy – then every login lockout and request limit would hit all
+     * users at once. X-Forwarded-For is only believed when the direct peer is listed in
+     * TRUSTED_PROXIES (anybody can send that header): the right-most address not belonging
+     * to a trusted proxy is the client.
+     */
+    public static function clientIp(string $remoteAddr, ?string $forwardedFor): string
+    {
+        $trusted = array_values(array_filter(array_map('trim', explode(',', (string) Config::get('TRUSTED_PROXIES', '')))));
+        if ($trusted === [] || $forwardedFor === null || !NetworkGuard::inAny($remoteAddr, $trusted)) {
+            return $remoteAddr;
+        }
+        $chain = array_reverse(array_filter(array_map('trim', explode(',', $forwardedFor))));
+        foreach ($chain as $hop) {
+            if (!filter_var($hop, FILTER_VALIDATE_IP)) {
+                return $remoteAddr; // garbage in the header: stay with what we know
+            }
+            if (!NetworkGuard::inAny($hop, $trusted)) {
+                return $hop;
+            }
+        }
+        return $remoteAddr;
     }
 
     /**

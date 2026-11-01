@@ -31,9 +31,14 @@ environment variables – see [configuration.md](configuration.md). Docker-speci
 
 | Variable | Default | |
 |---|---|---|
-| `HTTP_PORT` | `8080` | port of the `web` container on the host |
-| `DB_ROOT_PASS` | – | MariaDB root password (only used by the `db` container) |
-| `DB_NAME`, `DB_USER`, `DB_PASS` | `bookspot`, `bookspot`, – | created by MariaDB on first start and used by the app |
+| `HTTP_PORT` | `8080` | port of the `web` container on the host; `127.0.0.1:8080` = only reachable through a proxy on the same machine |
+| `DB_ROOT_PASS` | **required** | MariaDB root password (only used by the `db` container) |
+| `DB_NAME`, `DB_USER`, `DB_PASS` | `bookspot`, `bookspot`, **required** | created by MariaDB on first start and used by the app |
+
+`DB_PASS` and `DB_ROOT_PASS` have no defaults: `docker compose` stops with “Set DB_PASS in .env” until
+they are set. **Updating from 1.9 or older without these lines in `.env`?** The database was created with
+the former defaults – add `DB_PASS=bookspot_pass` and `DB_ROOT_PASS=root_secret_pass` to `.env` (and
+change them afterwards with `ALTER USER` if you like).
 
 `DB_DRIVER`, `DB_HOST` and `DB_PORT` are fixed to the `db` container.
 
@@ -65,6 +70,17 @@ books.example.org {
 Set `APP_URL=https://books.example.org`. Cookies get the `Secure` flag automatically when the request
 arrives via HTTPS (`SESSION_SECURE=auto`); if your proxy terminates TLS and forwards plain HTTP, set
 `SESSION_SECURE=true`.
+
+Behind the proxy every request seems to come from the proxy. Tell BookSpot which addresses are proxies,
+so login lockout and request limits apply per visitor and not to everybody at once:
+
+```dotenv
+HTTP_PORT=127.0.0.1:8080          # only the proxy on this machine can reach the container
+TRUSTED_PROXIES=172.16.0.0/12     # Docker's networks: the visitor's address comes from X-Forwarded-For
+```
+
+Only trust the proxy range when the container port is not reachable directly – otherwise anybody could
+claim any address in `X-Forwarded-For`.
 
 ## Updating
 

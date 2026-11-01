@@ -102,6 +102,18 @@ final class HttpTest extends TestCase
         self::assertSame(0, HttpStream::get('http://127.0.0.1:1/', ['timeout' => 1])['status'], 'connection refused');
     }
 
+    public function testStreamFallbackConnectsToTheCheckedAddressOnly(): void
+    {
+        $port = (int) parse_url(self::$base, PHP_URL_PORT);
+        // The host name does not resolve – the request still reaches the pinned, checked IP.
+        $pinned = HttpStream::get("http://covers.invalid:$port/json", ['header' => "User-Agent: pin\r\n"], ['host' => 'covers.invalid', 'port' => $port, 'ip' => '127.0.0.1']);
+        self::assertSame(200, $pinned['status']);
+        self::assertSame('pin', json_decode((string) $pinned['body'], true)['ua']);
+
+        $tooLarge = HttpStream::get(self::$base . '/cover.png', [], null, 100);
+        self::assertSame([0, null], [$tooLarge['status'], $tooLarge['body']], 'bodies above the limit are refused');
+    }
+
     public function testCoverDownloadFollowsCheckedRedirects(): void
     {
         Config::set('COVER_ALLOW_PRIVATE_HOSTS', 'true');
