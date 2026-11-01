@@ -20,8 +20,11 @@ final class CoverController extends Controller
     /** Locally stored cover (downloaded on first request, see CoverService); ?v= busts caches */
     public function show(Request $request): Response
     {
-        $this->user($request);
+        $user = $this->user($request);
         $id = $request->paramInt('id') ?? $request->queryInt('id');
+        if ($id !== null && !BookService::canSee($this->db(), $id, $user['id'])) {
+            $id = null; // somebody else's private wish
+        }
         $cover = $id === null ? null : (new CoverService($this->db()))->ensure($id);
         if ($cover === null) {
             return Response::empty(404, ['Cache-Control' => 'private, max-age=3600']);
@@ -46,6 +49,7 @@ final class CoverController extends Controller
     {
         $user = $this->user($request);
         $id = $request->paramInt('id') ?? throw ApiException::validation(['id' => 'required']);
+        BookService::assertWritable($this->db(), $id, $user['id']);
         $file = $request->files['cover'] ?? null;
         if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
             $code = is_array($file) ? (int) ($file['error'] ?? 0) : UPLOAD_ERR_NO_FILE;
@@ -60,6 +64,7 @@ final class CoverController extends Controller
     {
         $user = $this->user($request);
         $id = $request->paramInt('id') ?? throw ApiException::validation(['id' => 'required']);
+        BookService::assertWritable($this->db(), $id, $user['id']);
         (new CoverService($this->db()))->removeUpload($id);
         return ['book' => (new BookService($this->db(), new ShelfService($this->db())))->get($id, $user['id'])];
     }

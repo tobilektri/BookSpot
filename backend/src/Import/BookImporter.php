@@ -159,6 +159,13 @@ final class BookImporter
             } else {
                 $bookId = (int) $existing['id'];
                 $changes = $this->mergeMissing($existing, $book);
+                if (!empty($existing['wishlist'])) {
+                    // Somebody wished for it and now it is in this collection (like BookService::create).
+                    $this->db->run('DELETE FROM wishes WHERE book_id = ?', [$bookId]);
+                    $changes = ['wishlist' => 0, 'entry_type' => $book['entry_type'], 'status' => $book['status']]
+                        + array_intersect_key($book, array_flip(['loan_from', 'loan_start', 'loan_due', 'loan_user_id', 'shelf_id', 'shelf_col', 'shelf_row']))
+                        + $changes;
+                }
                 $loan = $this->loanTakeOver($existing, $book);
                 if ($loan !== []) {
                     $changes = $loan + $changes;
@@ -299,14 +306,15 @@ final class BookImporter
     /**
      * Option "take over loans": a book imported earlier as own book (older versions
      * did not recognise "Leihe") that the CSV lists as library loan becomes one.
-     * Only books without a shelf place – a shelved book really is one's own.
+     * Only books the importing user added and without a shelf place – a shelved book really is one's own.
      *
      * @return array<string, mixed>
      */
     private function loanTakeOver(array $existing, array $book): array
     {
         if (empty($this->options['take_over_loans']) || $book['entry_type'] !== 'library_loan'
-            || $existing['entry_type'] !== 'owned' || $existing['shelf_id'] !== null || isset($book['shelf_id'])) {
+            || $existing['entry_type'] !== 'owned' || $existing['shelf_id'] !== null || isset($book['shelf_id'])
+            || (int) ($existing['created_by'] ?? 0) !== $this->userId) { // never somebody else's book
             return [];
         }
         return array_intersect_key($book, array_flip(['entry_type', 'loan_from', 'loan_start', 'loan_due', 'loan_user_id', 'status']));

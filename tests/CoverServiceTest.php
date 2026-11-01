@@ -202,6 +202,11 @@ final class CoverServiceTest extends TestCase
         self::assertSame(['processed' => 0, 'stored' => 0, 'remaining' => 0], $service->prefetchBatch());
         self::assertSame($asked, $calls, 'the sources are not asked again');
 
+        // Fixing the ISBN keeps the own photo.
+        $this->books->update($book['id'], ['isbn' => '9783404139873'], $this->user['id']);
+        self::assertTrue($this->books->get($book['id'], $this->user['id'])['cover_uploaded']);
+        self::assertNotNull($service->ensure($book['id']));
+
         $service->removeUpload($book['id']);
         self::assertFalse($this->books->get($book['id'], $this->user['id'])['cover_uploaded']);
         self::assertSame([], glob(CoverService::dir() . '/*') ?: []);

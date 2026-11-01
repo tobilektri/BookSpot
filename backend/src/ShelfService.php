@@ -30,7 +30,7 @@ final class ShelfService
         $counts = [];
         foreach ($this->db->all(
             "SELECT shelf_id, shelf_col, shelf_row, COUNT(*) AS n FROM books
-             WHERE shelf_id IS NOT NULL AND status = 'active' GROUP BY shelf_id, shelf_col, shelf_row"
+             WHERE shelf_id IS NOT NULL AND status = 'active' AND wishlist = 0 GROUP BY shelf_id, shelf_col, shelf_row"
         ) as $row) {
             $counts[(int) $row['shelf_id']][(int) $row['shelf_col'] . ':' . (int) $row['shelf_row']] = (int) $row['n'];
         }
@@ -46,7 +46,7 @@ final class ShelfService
                     b.lent_to, b.shelf_col, b.shelf_row, COALESCE(ub.reading_status, 'unread') AS reading_status
              FROM books b
              LEFT JOIN user_books ub ON ub.book_id = b.id AND ub.user_id = ?
-             WHERE b.shelf_id = ? AND b.status = 'active'
+             WHERE b.shelf_id = ? AND b.status = 'active' AND b.wishlist = 0
              ORDER BY b.shelf_col, b.shelf_row, b.authors, b.title",
             [$userId, $id]
         );

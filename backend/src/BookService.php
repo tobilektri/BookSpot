@@ -80,14 +80,40 @@ final class BookService
      */
     private function visible(array $row, int $userId): bool
     {
-        if (empty($row['wishlist'])) {
-            return true;
-        }
-        return $this->db->value(
+        return empty($row['wishlist']) || self::seesWish($this->db, (int) $row['id'], $userId);
+    }
+
+    private static function seesWish(Database $db, int $bookId, int $userId): bool
+    {
+        return $db->value(
             "SELECT w.id FROM wishes w JOIN users u ON u.id = w.user_id
              WHERE w.book_id = ? AND (w.user_id = ? OR u.wishlist_visibility IN ('instance', 'public')) LIMIT 1",
-            [(int) $row['id'], $userId]
+            [$bookId, $userId]
         ) !== null;
+    }
+
+    /** May the user see the book? Books of the collection: yes; wished-only books: see visible(). */
+    public static function canSee(Database $db, int $bookId, int $userId): bool
+    {
+        $wishlist = $db->value('SELECT wishlist FROM books WHERE id = ?', [$bookId]);
+        return $wishlist !== null && (empty($wishlist) || self::seesWish($db, $bookId, $userId));
+    }
+
+    /**
+     * May the user change the book (data, cover, personal data, reads, delete)? A wished-only
+     * book belongs to the people who wish for it – others may at most look at a shared list.
+     *
+     * @throws ApiException 404 when the book is not visible, 403 when it is only visible
+     */
+    public static function assertWritable(Database $db, int $bookId, int $userId): void
+    {
+        $wishlist = $db->value('SELECT wishlist FROM books WHERE id = ?', [$bookId]);
+        if ($wishlist === null || (!empty($wishlist) && !self::seesWish($db, $bookId, $userId))) {
+            throw ApiException::notFound('book_not_found');
+        }
+        if (!empty($wishlist) && $db->value('SELECT id FROM wishes WHERE user_id = ? AND book_id = ?', [$userId, $bookId]) === null) {
+            throw new ApiException('forbidden', 403);
+        }
     }
 
     /**
@@ -202,7 +228,7 @@ final class BookService
              FROM books b
              LEFT JOIN user_books ub ON ub.book_id = b.id AND ub.user_id = :uid
              LEFT JOIN users u ON u.id = b.loan_user_id
-             WHERE b.status = 'active' AND b.entry_type IN ('library_loan', 'personal_loan')
+             WHERE b.status = 'active' AND b.wishlist = 0 AND b.entry_type IN ('library_loan', 'personal_loan')
              ORDER BY b.loan_due IS NULL, b.loan_due, b.title LIMIT $limit",
             ['uid' => $userId]
         );
@@ -276,18 +302,26 @@ final class BookService
     public function update(int $id, array $input, int $userId): array
     {
         $existing = $this->db->one('SELECT * FROM books WHERE id = ?', [$id]) ?? throw ApiException::notFound('book_not_found');
+        self::assertWritable($this->db, $id, $userId);
+        if (!empty($existing['wishlist'])) {
+            // Type, place, loan and status of a wish only change through WishlistService::fulfil().
+            $input = array_diff_key($input, array_flip(['entry_type', 'status', 'shelf_id', 'shelf_col', 'shelf_row',
+                'loan_from', 'loan_start', 'loan_due', 'loan_user_id', 'lent_to', 'lent_at']));
+        }
         $data = $this->validate($input, $existing, $userId);
         if (!empty($data['isbn13']) && $data['isbn13'] !== $existing['isbn13']) {
             $dupe = $this->db->value('SELECT id FROM books WHERE isbn13 = ? AND id <> ?', [$data['isbn13'], $id]);
             if ($dupe !== null) {
-                throw new ApiException('duplicate_isbn', 409, ['book_id' => (int) $dupe]);
+                // Somebody else's private wish must not show its id.
+                throw new ApiException('duplicate_isbn', 409, self::canSee($this->db, (int) $dupe, $userId) ? ['book_id' => (int) $dupe] : []);
             }
         }
         $data['updated_at'] = App::nowString();
         $this->db->update('books', $data, ['id' => $id]);
         $coverSourceChanged = (array_key_exists('cover_url', $data) && $data['cover_url'] !== $existing['cover_url'])
             || (array_key_exists('isbn13', $data) && $data['isbn13'] !== $existing['isbn13']);
-        if ($coverSourceChanged) {
+        // An own cover photo stays – it is never replaced by the sources.
+        if ($coverSourceChanged && empty($existing['cover_uploaded_at'])) {
             (new CoverService($this->db))->forget($id, $existing['cover_file'] ?? null);
         }
         return $this->get($id, $userId);
@@ -307,13 +341,17 @@ final class BookService
         }
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         return $this->db->run(
-            "UPDATE books SET shelf_id = ?, shelf_col = ?, shelf_row = ?, updated_at = ? WHERE id IN ($placeholders)",
+            "UPDATE books SET shelf_id = ?, shelf_col = ?, shelf_row = ?, updated_at = ? WHERE id IN ($placeholders) AND wishlist = 0",
             [$position['shelf_id'], $position['shelf_col'], $position['shelf_row'], App::nowString(), ...$ids]
         )->rowCount();
     }
 
-    public function delete(int $id): void
+    /** $userId: checks the user may delete it (wished-only books: only the people who wish for it). */
+    public function delete(int $id, ?int $userId = null): void
     {
+        if ($userId !== null) {
+            self::assertWritable($this->db, $id, $userId);
+        }
         $file = $this->db->value('SELECT cover_file FROM books WHERE id = ?', [$id]);
         if ($this->db->run('DELETE FROM books WHERE id = ?', [$id])->rowCount() === 0) {
             throw ApiException::notFound('book_not_found');
@@ -534,7 +572,7 @@ final class BookService
                 'updated_at' => $row['personal_updated_at'] ?? null,
             ],
         ];
-        if (array_key_exists('created_by_name', $row)) {
+        if (array_key_exists('created_by_name', $row) && empty($row['wishlist'])) { // who wished for it stays private
             $book['created_by_name'] = $row['created_by_name'];
         }
         return $book;
