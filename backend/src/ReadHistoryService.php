@@ -17,14 +17,21 @@ final class ReadHistoryService
     {
     }
 
-    /** @return array<int, list<array{id: int, started_at: ?string, finished_at: ?string}>> earlier reads per book id, newest first */
-    public function forUser(int $userId, ?int $bookId = null): array
+    /**
+     * @param int|list<int>|null $bookIds one book, several, or all of the user's
+     * @return array<int, list<array{id: int, started_at: ?string, finished_at: ?string}>> earlier reads per book id, newest first
+     */
+    public function forUser(int $userId, int|array|null $bookIds = null): array
     {
+        $bookIds = $bookIds === null ? null : array_values(array_map('intval', (array) $bookIds));
+        if ($bookIds === []) {
+            return [];
+        }
         $sql = 'SELECT id, book_id, started_at, finished_at FROM book_reads WHERE user_id = ?'
-            . ($bookId === null ? '' : ' AND book_id = ?')
+            . ($bookIds === null ? '' : ' AND book_id IN (' . implode(',', array_fill(0, count($bookIds), '?')) . ')')
             . ' ORDER BY finished_at IS NULL, finished_at DESC, id DESC';
         $reads = [];
-        foreach ($this->db->all($sql, $bookId === null ? [$userId] : [$userId, $bookId]) as $row) {
+        foreach ($this->db->all($sql, [$userId, ...($bookIds ?? [])]) as $row) {
             $reads[(int) $row['book_id']][] = ['id' => (int) $row['id'], 'started_at' => $row['started_at'], 'finished_at' => $row['finished_at']];
         }
         return $reads;
