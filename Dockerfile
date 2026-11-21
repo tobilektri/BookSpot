@@ -3,7 +3,7 @@
 #   docker compose up -d --build        (see docker-compose.yml)
 # Targets: "app" (PHP 8.5-FPM, default) and "web" (nginx serving public/).
 
-FROM node:22-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
