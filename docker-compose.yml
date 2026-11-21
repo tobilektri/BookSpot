@@ -27,7 +27,7 @@ services:
       CRON_TOKEN: ${CRON_TOKEN:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.org}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       METADATA_LOOKUP: ${METADATA_LOOKUP:-true}
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
@@ -68,7 +68,7 @@ services:
     depends_on:
       - app
 
-  # Runs reminders (push 3 days / 1 day before due date) and metadata enrichment hourly.
+  # Runs reminders (push 3 days / 1 day before due date), metadata and covers every 10 minutes.
   cron:
     image: bookspot-app
     restart: unless-stopped

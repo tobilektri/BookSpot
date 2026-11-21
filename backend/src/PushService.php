@@ -50,7 +50,13 @@ final class PushService
             App::log('[BookSpot] Could not create VAPID keys: ' . $e->getMessage());
             return null;
         }
-        $this->db->insert('settings', ['name' => 'vapid_keys', 'value' => json_encode($keys)]);
+        try {
+            $this->db->insert('settings', ['name' => 'vapid_keys', 'value' => json_encode($keys)]);
+        } catch (\PDOException) {
+            // A parallel request stored its keys first: use those, push subscriptions depend on one pair.
+            $stored = json_decode((string) $this->db->value("SELECT value FROM settings WHERE name = 'vapid_keys'"), true);
+            return isset($stored['publicKey'], $stored['privateKey']) ? $stored : null;
+        }
         return $keys;
     }
 

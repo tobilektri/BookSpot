@@ -52,8 +52,8 @@ change them afterwards with `ALTER USER` if you like).
 Backup example:
 
 ```bash
-docker compose exec db sh -c 'mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" bookspot' > bookspot.sql
-docker compose run --rm --no-deps app tar czf - -C /var/www/html var/covers > covers.tar.gz
+docker compose exec -T db sh -c 'mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' > bookspot.sql
+docker compose run -T --rm --no-deps app tar czf - -C /var/www/html var/covers > covers.tar.gz
 ```
 
 ## HTTPS
@@ -99,4 +99,6 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 The override mounts the source code into the containers, enables `APP_ENV=development` and
-self-registration, and adds a Vite container. More in [development.md](development.md).
+self-registration, makes PHP pick up edits without a restart and adds a Vite container. The mount
+hides the image's `vendor/` – run `composer install` on the host once. More in
+[development.md](development.md).

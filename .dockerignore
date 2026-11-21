@@ -12,5 +12,7 @@ public/icons
 public/app-icons
 public/favicon.svg
 tests
+tools
+docs
 *.md
 !README.md

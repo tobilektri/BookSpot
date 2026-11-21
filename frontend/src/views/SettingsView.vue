@@ -108,7 +108,7 @@ const exportUrl = new URL('api/v1/export', document.baseURI).href
       <form class="grid grid-cols-1 gap-3 sm:grid-cols-2" @submit.prevent="saveLibrary">
         <div>
           <label class="label" for="library_name">{{ t('settings.libraryName') }}</label>
-          <input id="library_name" v-model="library.library_name" class="input" maxlength="150" placeholder="Stadtbibliothek" />
+          <input id="library_name" v-model="library.library_name" class="input" maxlength="150" :placeholder="t('book.libraryPlaceholder')" />
         </div>
         <div>
           <label class="label" for="library_loan_days">{{ t('settings.loanDays') }}</label>

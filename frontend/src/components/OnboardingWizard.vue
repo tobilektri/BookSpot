@@ -189,7 +189,7 @@ async function doInstall() {
           <div v-if="step.action === 'library'" class="mt-4 grid grid-cols-1 gap-3 rounded-xl bg-stone-100 p-3 text-sm sm:grid-cols-2 dark:bg-stone-800">
             <div>
               <label class="label" for="ob_library_name">{{ t('settings.libraryName') }}</label>
-              <input id="ob_library_name" v-model="library.library_name" class="input" maxlength="150" placeholder="Stadtbibliothek" />
+              <input id="ob_library_name" v-model="library.library_name" class="input" maxlength="150" :placeholder="t('book.libraryPlaceholder')" />
             </div>
             <div>
               <label class="label" for="ob_library_loan_days">{{ t('settings.loanDays') }}</label>

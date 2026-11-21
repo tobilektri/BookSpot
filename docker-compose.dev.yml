@@ -3,6 +3,9 @@
 #   -> PHP/nginx on http://localhost:8080, Vite (hot reload) on http://localhost:5173
 services:
   app:
+    # The production image never re-reads PHP files (opcache.validate_timestamps=0); here edits show at once.
+    # The mount hides the image's vendor/: run `composer install` on the host first.
+    command: ["php-fpm", "-d", "opcache.validate_timestamps=1"]
     environment:
       APP_ENV: development
       ALLOW_REGISTRATION: "true"

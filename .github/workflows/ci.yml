@@ -79,12 +79,20 @@ jobs:
             public/assets
             public/app-icons
 
+  # Builds the Docker images (PHP extensions, multi-stage copies) and checks the nginx config.
+  docker:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --target app -t bookspot-app .
+      - run: docker build --target web -t bookspot-web .
+      - name: nginx config
+        run: docker run --rm --add-host app:127.0.0.1 bookspot-web nginx -t
+
   # Ready-to-upload bundle for shared hosting (FTP): includes vendor/ and the built frontend.
   bundle:
     needs: [php, frontend]
     runs-on: ubuntu-26.04
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
@@ -99,15 +107,29 @@ jobs:
       - name: Create bundle
         run: |
           mkdir -p dist/bookspot
-          cp -r backend public vendor var .htaccess .env.example composer.json README.md LICENSE dist/bookspot/
+          cp -r backend public vendor var docs .htaccess .env.example composer.json composer.lock README.md README.de.md LICENSE dist/bookspot/
           rm -rf dist/bookspot/var/*.sqlite dist/bookspot/var/sessions
+          # vendor/ is never served, even when the document root is the project folder and rewriting is off
+          printf 'Require all denied\n' > dist/bookspot/vendor/.htaccess
           cd dist && zip -qr bookspot.zip bookspot
       - uses: actions/upload-artifact@v7
         with:
           name: bookspot-bundle
           path: dist/bookspot.zip
+
+  # Only tag builds may write to the repository (GitHub release with the bundle).
+  release:
+    needs: [bundle, docker]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: bookspot-bundle
+          path: dist
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
           files: dist/bookspot.zip

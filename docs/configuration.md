@@ -21,7 +21,7 @@ from Docker Compose – take precedence. An empty value means “use the default
 |---|---|---|
 | `DB_DRIVER` | `mysql` | `mysql` (MariaDB/MySQL) or `sqlite`. |
 | `DB_HOST`, `DB_PORT` | `localhost`, `3306` | |
-| `DB_NAME`, `DB_USER`, `DB_PASS` | – | |
+| `DB_NAME`, `DB_USER`, `DB_PASS` | `bookspot`, `root`, empty | |
 | `DB_SQLITE_PATH` | `var/bookspot.sqlite` | Only for SQLite; relative to the project folder or absolute. |
 
 Tables are created and migrated automatically on the first request (`backend/migrations/`).
@@ -34,6 +34,7 @@ Tables are created and migrated automatically on the first request (`backend/mig
 | `TRUSTED_PROXIES` | – | Behind a reverse proxy: comma-separated addresses/CIDRs of the proxies (e.g. `172.16.0.0/12` for Docker). Only then the visitor's address is taken from `X-Forwarded-For` – login lockout and request limits work per visitor instead of hitting everybody at once. Never list addresses visitors can connect from directly. |
 | `SESSION_SECURE` | `auto` | `Secure` cookie flag: `auto` = when the request is HTTPS; `true` behind a TLS-terminating proxy. |
 | `SESSION_LIFETIME_DAYS` | `30` | How long you stay signed in. |
+| `SESSION_USE_VAR_DIR` | `true` | Store sessions in `var/sessions/` (survive the hoster's session clean-up). `false` = PHP's default session directory. |
 | `MAIL_FROM` | `noreply@<host>` | Sender of invitation e-mails (PHP `mail()`). Use an address of your own domain, otherwise providers may reject the mail. |
 | `MAIL_REPLY_TO` | – | Optional reply-to address. |
 | `INVITE_VALID_DAYS` | `7` | Lifetime of invitation links. |
@@ -43,10 +44,11 @@ Tables are created and migrated automatically on the first request (`backend/mig
 | Setting | Default | |
 |---|---|---|
 | `CRON_TOKEN` | generated | Token of the web cron URL. Empty: generated once and shown to admins under *Settings → Cron job*. Set it for a fixed token (min. 16 characters). |
-| `CRON_QUEUE_BATCH` | `30` | Batch scan placeholders looked up per cron run. |
+| `CRON_MAX_SECONDS` | `100` | Time budget of one cron run for the lookups (queue, book data, covers). Housekeeping and reminders always run first; a run started while the previous one is still busy is skipped. |
+| `CRON_QUEUE_BATCH` | `30` | Batch scan placeholders looked up per cron run (max. 100). |
 | `CRON_ENRICH_METADATA` | `true` | Fill in missing book data in the background. |
-| `CRON_ENRICH_BATCH` | `20` | Books enriched per cron run. |
-| `CRON_COVER_BATCH` | `40` | Covers downloaded ahead of time per cron run. |
+| `CRON_ENRICH_BATCH` | `20` | Books enriched per cron run (max. 50). |
+| `CRON_COVER_BATCH` | `40` | Covers downloaded ahead of time per cron run (max. 200). |
 
 ## Book data and covers
 
@@ -78,7 +80,7 @@ See [metadata.md](metadata.md#rate-limits) for how they work.
 | Setting | Default | |
 |---|---|---|
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generated | Empty: generated once and stored in the database. Or create them with `php backend/bin/vapid.php`. |
-| `VAPID_SUBJECT` | `mailto:admin@example.org` | Contact for push services (`mailto:` or `https:`). |
+| `VAPID_SUBJECT` | `APP_URL`, otherwise `mailto:admin@localhost` | Contact for push services (`mailto:` or `https:`). |
 
 ## Other
 
