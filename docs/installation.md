@@ -100,6 +100,10 @@ external service such as cron-job.org. **Every 10–15 minutes** is a good inter
 The token is generated automatically – set `CRON_TOKEN` in `.env` if you prefer a fixed one.
 URLs of older versions (`api/cron.php?token=…`) keep working.
 
+A run works for at most `CRON_MAX_SECONDS` (100 s) and keeps going when the cron service stops
+waiting earlier (cron-job.org gives up after 30 s – that is fine). Reminders and housekeeping come
+first; if a run is still busy when the next one starts, the new one is skipped.
+
 ## 8. Push notifications (optional)
 
 Nothing to do: the VAPID keys for Web Push are generated on first use and stored in the database.
