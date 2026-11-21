@@ -117,7 +117,7 @@ final class Auth
         $_SESSION['impersonator_id'] = (int) $admin['id'];
         $_SESSION['uid'] = (int) $target['id'];
         self::$currentUser = $target;
-        error_log(sprintf('[BookSpot] Admin #%d (%s) impersonates user #%d (%s)', $admin['id'], $admin['username'], $target['id'], $target['username']));
+        App::log(sprintf('[BookSpot] Admin #%d (%s) impersonates user #%d (%s)', $admin['id'], $admin['username'], $target['id'], $target['username']));
         return $target;
     }
 
@@ -334,6 +334,14 @@ final class Auth
                 throw new ApiException('last_admin', 409);
             }
             $this->db->run('DELETE FROM users WHERE id = ?', [$id]);
+            // Wished-only books nobody wishes for any more (the wishes went with the user).
+            $orphans = $this->db->all('SELECT id, cover_file FROM books b WHERE b.wishlist = 1 AND NOT EXISTS (SELECT 1 FROM wishes w WHERE w.book_id = b.id)');
+            foreach ($orphans as $orphan) {
+                $this->db->run('DELETE FROM books WHERE id = ?', [(int) $orphan['id']]);
+                if (!empty($orphan['cover_file'])) {
+                    @unlink(CoverService::dir() . '/' . basename((string) $orphan['cover_file']));
+                }
+            }
         });
     }
 
@@ -378,7 +386,8 @@ final class Auth
             $update['password_hash'] = self::hash($password);
         }
         $this->db->update('users', $update, ['id' => (int) $row['id']]);
-        $this->db->run('DELETE FROM login_attempts WHERE ip = ? OR attempted_at < ?', [$ip, $since]);
+        // Only this account's failures – failed guesses at other accounts from the same address keep counting.
+        $this->db->run('DELETE FROM login_attempts WHERE (ip = ? AND username = ?) OR attempted_at < ?', [$ip, mb_substr($login, 0, 100), $since]);
 
         return self::publicUser($row);
     }

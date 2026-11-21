@@ -56,8 +56,13 @@ async function saveLibrary() {
 }
 
 async function doLogout() {
-  await logout()
-  router.replace('/login')
+  if (store.pendingOps > 0 && !confirm(t('auth.logoutPending', { n: store.pendingOps }))) return
+  try {
+    await logout()
+    router.replace('/login')
+  } catch (e) {
+    toast(e?.offline ? t('auth.logoutOffline') : errorMessage(e), 'error')
+  }
 }
 
 const exportUrl = new URL('api/v1/export', document.baseURI).href
@@ -161,8 +166,9 @@ const exportUrl = new URL('api/v1/export', document.baseURI).href
       <p>{{ store.appName || appName }} · {{ t('settings.version', { v: store.version }) }} · <a href="https://github.com/tobilektri/BookSpot" class="text-brand-700 underline" target="_blank" rel="noopener">{{ t('settings.sourceCode') }}</a></p>
       <div class="flex flex-wrap gap-2">
         <button class="btn-secondary" @click="store.showOnboarding = true"><GraduationCap class="h-4 w-4" />{{ t('onboarding.restart') }}</button>
-        <button class="btn-secondary text-red-600" @click="doLogout"><LogOut class="h-4 w-4" />{{ t('auth.logout') }}</button>
+        <button class="btn-secondary text-red-600" :disabled="!store.online" @click="doLogout"><LogOut class="h-4 w-4" />{{ t('auth.logout') }}</button>
       </div>
+      <p v-if="!store.online" class="text-xs text-stone-500">{{ t('auth.logoutOffline') }}</p>
     </section>
   </div>
 </template>

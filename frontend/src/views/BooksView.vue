@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Plus, CheckSquare, Square, X, MoveRight } from '@lucide/vue'
+import { Search, Plus, CheckSquare, Square, X, MoveRight, Gift } from '@lucide/vue'
 import { t, errorMessage } from '../lib/i18n.js'
 import { toast } from '../lib/store.js'
 import { books, loadCatalog, loading, fromCache, loadedAt, normalizeText } from '../lib/catalog.js'
 import { moveBooks } from '../lib/sync.js'
-import { formatDate, formatNumber } from '../lib/format.js'
+import { formatDate, formatNumber, compareNewest } from '../lib/format.js'
 import { cleanIsbn } from '../lib/isbn.js'
 import BookRow from '../components/BookRow.vue'
 import BaseModal from '../components/BaseModal.vue'
@@ -21,7 +21,16 @@ const q = ref(String(route.query.q ?? ''))
 const status = ref(String(route.query.status ?? ''))
 const filter = ref(String(route.query.filter ?? ''))
 const genre = ref(String(route.query.genre ?? ''))
-const sort = ref(String(route.query.sort ?? 'title'))
+// The sort order is remembered per device; links and the URL still win.
+const SORT_KEY = 'bookspot.books.sort'
+function storedSort() {
+  try {
+    return localStorage.getItem(SORT_KEY)
+  } catch {
+    return null
+  }
+}
+const sort = ref(String(route.query.sort ?? storedSort() ?? 'title'))
 
 const pageSize = 60
 const visible = ref(pageSize)
@@ -47,6 +56,14 @@ onMounted(async () => {
 onUnmounted(() => observer?.disconnect())
 
 // Keep filters in the URL (shareable, back button friendly).
+watch(sort, (value) => {
+  try {
+    localStorage.setItem(SORT_KEY, value)
+  } catch {
+    /* private mode: not remembered */
+  }
+})
+
 watch([q, status, filter, genre, sort], () => {
   visible.value = pageSize
   const query = { q: q.value || undefined, status: status.value || undefined, filter: filter.value || undefined, genre: genre.value || undefined, sort: sort.value !== 'title' ? sort.value : undefined }
@@ -67,6 +84,7 @@ const filtered = computed(() => {
     if (filter.value === 'unplaced' && (b.entry_type !== 'owned' || b.shelf_id)) return false
     if (filter.value === 'lent' && !b.lent_to) return false
     if (filter.value === 'library' && b.entry_type === 'owned') return false
+    if (filter.value === 'nocover' && b.has_cover !== false) return false
     if (genre.value && b.genre !== genre.value) return false
     if (needle) {
       const hay = normalizeText(`${b.title} ${b.authors} ${b.genre ?? ''} ${b.publisher ?? ''} ${b.location?.compartment ?? ''}`)
@@ -79,7 +97,7 @@ const filtered = computed(() => {
   const sorters = {
     title: (a, b) => collator.compare(a.title, b.title),
     authors: (a, b) => collator.compare(a.authors || '~', b.authors || '~') || collator.compare(a.title, b.title),
-    recent: (a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id,
+    recent: compareNewest,
     pages: (a, b) => b.pages - a.pages,
     year: (a, b) => (b.published_year ?? 0) - (a.published_year ?? 0),
     due: (a, b) => (a.loan_due ?? '9999').localeCompare(b.loan_due ?? '9999'),
@@ -98,6 +116,7 @@ const filterChips = computed(() => [
   { value: 'unplaced', label: t('books.filterUnplaced') },
   { value: 'library', label: t('books.filterLibrary') },
   { value: 'lent', label: t('books.filterLent') },
+  { value: 'nocover', label: t('books.filterNoCover') },
 ])
 
 function toggle(id) {
@@ -155,6 +174,8 @@ async function moveSelection() {
       <button v-for="chip in statusChips" :key="chip.value" class="chip" :class="{ 'chip-active': status === chip.value }" @click="status = chip.value">{{ chip.label }}</button>
       <span class="mx-1 w-px shrink-0 bg-stone-300 dark:bg-stone-700"></span>
       <button v-for="chip in filterChips" :key="chip.value" class="chip" :class="{ 'chip-active': filter === chip.value }" @click="filter = filter === chip.value ? '' : chip.value">{{ chip.label }}</button>
+      <!-- Wished books are not part of the collection: own page, only when wanted -->
+      <RouterLink to="/wishlist" class="chip inline-flex items-center gap-1"><Gift class="h-3.5 w-3.5" />{{ t('wishlist.title') }}</RouterLink>
     </div>
 
     <div class="grid grid-cols-2 gap-2">

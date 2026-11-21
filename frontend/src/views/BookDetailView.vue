@@ -1,14 +1,15 @@
 <script setup>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle } from '@lucide/vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Pencil, Trash2, MapPin, CalendarClock, Users, LibraryBig, Check, BookOpen, Loader2, AlertTriangle, RotateCcw, History, Plus, X, Camera, Gift, ShoppingBag, Library } from '@lucide/vue'
 import { api } from '../lib/api.js'
-import { t, errorMessage } from '../lib/i18n.js'
+import { t, errorMessage, fieldError } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
 import { books as catalog, patchBook, removeBook } from '../lib/catalog.js'
 import { savePersonal, moveBooks } from '../lib/sync.js'
 import { formatDate, formatPrice, locationText, todayIso, addDaysIso } from '../lib/format.js'
 import { invalidateShelves } from '../lib/shelves.js'
+import { shrinkImage } from '../lib/image.js'
 import BookCover from '../components/BookCover.vue'
 import StarRating from '../components/StarRating.vue'
 import DueLabel from '../components/DueLabel.vue'
@@ -17,6 +18,7 @@ import LocationPicker from '../components/LocationPicker.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
+const route = useRoute()
 
 const book = ref(null)
 const error = ref('')
@@ -31,6 +33,9 @@ const showLend = ref(false)
 const lendName = ref('')
 const showExtend = ref(false)
 const extendDate = ref('')
+const showAddRead = ref(false)
+const newRead = reactive({ started_at: '', finished_at: '' })
+const readErrors = ref({})
 
 async function load() {
   error.value = ''
@@ -48,6 +53,11 @@ async function load() {
     }
   }
   if (book.value) resetPersonal()
+  // Just bought from the wishlist: ask for its place right away.
+  if (book.value && route.query.place && book.value.entry_type === 'owned' && !book.value.shelf_id) {
+    router.replace({ query: {} })
+    openMove()
+  }
   // Bulk scan placeholder: show the title as soon as the metadata queue found it.
   clearTimeout(pendingTimer)
   if (book.value?.metadata_status === 'pending' && !dirty.value) pendingTimer = setTimeout(load, 4000)
@@ -96,6 +106,126 @@ const saveDetails = () =>
     finished_at: personal.finished_at || null,
     notes: personal.notes,
   })
+
+// ---- wishlist
+async function addToWishlist() {
+  try {
+    await api('v1/wishlist', { method: 'POST', body: { book_id: book.value.id } })
+    book.value = { ...book.value, wished: true }
+    toast(t('wishlist.added'), 'success')
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+async function removeFromWishlist() {
+  try {
+    await api(`v1/wishlist/${book.value.id}`, { method: 'DELETE' })
+    toast(t('wishlist.removed'), 'success')
+    if (book.value.wishlist) router.replace('/wishlist')
+    else book.value = { ...book.value, wished: false }
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+/** Bought or borrowed: the book joins the collection; a bought one gets its place right away. */
+async function fulfil(type) {
+  try {
+    const result = await api(`v1/wishlist/${book.value.id}/fulfil`, { method: 'POST', body: { entry_type: type } })
+    book.value = { ...result.book, wished: false }
+    patchBook(book.value)
+    resetPersonal()
+    toast(t(type === 'owned' ? 'wishlist.bought' : 'wishlist.borrowed'), 'success')
+    if (type === 'owned') openMove()
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+// ---- own cover (photo) for books no source has a cover for
+const uploadingCover = ref(false)
+
+async function uploadCover(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  uploadingCover.value = true
+  try {
+    const form = new FormData()
+    form.append('cover', await shrinkImage(file), 'cover.jpg')
+    const result = await api(`v1/books/${book.value.id}/cover`, { method: 'POST', form })
+    book.value = { ...result.book, personal: { ...result.book.personal, reads: book.value.personal?.reads ?? [] } }
+    patchBook(book.value)
+    toast(t('book.coverSaved'), 'success')
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  } finally {
+    uploadingCover.value = false
+  }
+}
+
+async function removeCover() {
+  if (!confirm(t('book.coverRemoveConfirm'))) return
+  try {
+    const result = await api(`v1/books/${book.value.id}/cover`, { method: 'DELETE' })
+    book.value = result.book
+    patchBook(result.book)
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+// ---- re-reads: earlier reads are kept, statistics count every finished read
+const earlierReads = computed(() => book.value?.personal?.reads ?? [])
+const readCount = computed(() => earlierReads.value.length + (book.value?.personal?.reading_status === 'read' ? 1 : 0))
+
+function setReads(reads, personalData = {}) {
+  book.value = { ...book.value, personal: { ...book.value.personal, ...personalData, reads } }
+  patchBook(book.value)
+  resetPersonal()
+}
+
+async function readAgain() {
+  try {
+    const result = await api(`v1/books/${book.value.id}/read-again`, { method: 'POST' })
+    setReads(result.reads, result.personal)
+    toast(t('book.readAgainStarted'), 'success')
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+function openAddRead() {
+  Object.assign(newRead, { started_at: '', finished_at: '' })
+  readErrors.value = {}
+  showAddRead.value = true
+}
+
+async function addRead() {
+  readErrors.value = {}
+  try {
+    const result = await api(`v1/books/${book.value.id}/reads`, { method: 'POST', body: { started_at: newRead.started_at || null, finished_at: newRead.finished_at } })
+    setReads(result.reads)
+    showAddRead.value = false
+    toast(t('common.saved'), 'success')
+  } catch (e) {
+    if (e.details?.errors) readErrors.value = e.details.errors
+    else toast(errorMessage(e), 'error')
+  }
+}
+
+async function deleteRead(read) {
+  if (!confirm(t('book.deleteReadConfirm'))) return
+  try {
+    const result = await api(`v1/books/${book.value.id}/reads/${read.id}`, { method: 'DELETE' })
+    setReads(result.reads)
+  } catch (e) {
+    toast(errorMessage(e), 'error')
+  }
+}
+
+const readPeriod = (read) => [read.started_at ? formatDate(read.started_at) : '…', formatDate(read.finished_at)].join(' – ')
 
 async function updateBook(data, message = t('common.saved')) {
   try {
@@ -193,7 +323,20 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
 
     <template v-else>
       <section class="flex flex-col gap-4 sm:flex-row">
-        <BookCover :book="book" size="lg" class="self-center sm:self-start" />
+        <div class="flex flex-col items-center gap-1 self-center sm:self-start">
+          <BookCover :book="book" size="lg" />
+          <label
+            v-if="!book.wishlist || book.wished"
+            class="btn-ghost cursor-pointer !px-2 !py-1 text-xs"
+            :class="{ 'pointer-events-none opacity-50': !store.online || uploadingCover }"
+            :title="t('book.coverHint')"
+          >
+            <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" /><Camera v-else class="h-4 w-4" />
+            {{ t(book.has_cover === false ? 'book.coverAdd' : 'book.coverReplace') }}
+            <input type="file" accept="image/*" class="sr-only" :disabled="!store.online || uploadingCover" @change="uploadCover" />
+          </label>
+          <button v-if="book.cover_uploaded" class="btn-ghost !px-2 !py-1 text-xs text-stone-500" :disabled="!store.online" @click="removeCover">{{ t('book.coverRemove') }}</button>
+        </div>
         <div class="min-w-0 flex-1">
           <h1 class="font-serif text-2xl leading-tight font-semibold">{{ book.title }}</h1>
           <p class="mt-1 text-stone-600 dark:text-stone-400">{{ book.authors || t('common.unknownAuthor') }}</p>
@@ -203,14 +346,27 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             <RouterLink :to="`/books/${book.id}/edit`" class="font-medium underline">{{ t('batch.fillIn') }}</RouterLink>
           </p>
           <div class="mt-2 flex flex-wrap gap-2 text-xs">
-            <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ t(`entry.${book.entry_type}`) }}</span>
+            <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ t(book.wishlist ? 'entry.wishlist' : `entry.${book.entry_type}`) }}</span>
             <span v-if="book.genre" class="rounded-full bg-stone-200 px-2 py-0.5 dark:bg-stone-800">{{ book.genre }}</span>
             <span v-if="book.status !== 'active'" class="rounded-full bg-stone-800 px-2 py-0.5 text-white">{{ t(book.status === 'returned' ? 'book.statusReturned' : 'book.statusDiscarded') }}</span>
             <span v-if="offlineCopy" class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">Offline</span>
           </div>
 
+          <!-- Wished-only book: not part of the collection -->
+          <div v-if="book.wishlist" class="mt-4 rounded-xl bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+            <div class="flex items-center gap-2">
+              <Gift class="h-5 w-5 text-brand-600" />
+              <span class="flex-1 font-medium">{{ t(book.wished ? 'wishlist.onMyList' : 'wishlist.onSharedList') }}</span>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button class="btn-primary !py-1.5" :disabled="!store.online" @click="fulfil('owned')"><ShoppingBag class="h-4 w-4" />{{ t('wishlist.markBought') }}</button>
+              <button class="btn-secondary !py-1.5" :disabled="!store.online" @click="fulfil('library_loan')"><Library class="h-4 w-4" />{{ t('wishlist.markBorrowed') }}</button>
+              <button v-if="book.wished" class="btn-ghost !py-1.5 text-sm" :disabled="!store.online" @click="removeFromWishlist">{{ t('wishlist.remove') }}</button>
+            </div>
+          </div>
+
           <!-- Location (owned books) -->
-          <div v-if="book.entry_type === 'owned'" class="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+          <div v-else-if="book.entry_type === 'owned'" class="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
             <MapPin class="h-5 w-5 text-brand-600" />
             <div class="min-w-0 flex-1">
               <div class="text-xs text-stone-500">{{ t('book.location') }}</div>
@@ -245,8 +401,18 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             </div>
           </div>
 
+          <!-- Wish for a book of the catalogue (e.g. read from the library, want to own it) -->
+          <div v-if="!book.wishlist && (book.wished || book.entry_type !== 'owned' || book.status !== 'active')" class="mt-2 flex items-center gap-2 text-sm">
+            <Gift class="h-4 w-4 text-stone-500" />
+            <template v-if="book.wished">
+              <span class="flex-1">{{ t('wishlist.onMyList') }}</span>
+              <button class="btn-ghost !py-1 text-sm" :disabled="!store.online" @click="removeFromWishlist">{{ t('wishlist.remove') }}</button>
+            </template>
+            <button v-else class="btn-ghost !px-1 !py-1 text-sm" :disabled="!store.online" @click="addToWishlist">{{ t('wishlist.add') }}</button>
+          </div>
+
           <!-- Lending own books to someone -->
-          <div v-if="book.entry_type === 'owned'" class="mt-2 flex items-center gap-2 text-sm">
+          <div v-if="book.entry_type === 'owned' && !book.wishlist" class="mt-2 flex items-center gap-2 text-sm">
             <Users class="h-4 w-4 text-stone-500" />
             <template v-if="book.lent_to">
               <span class="flex-1 text-amber-800 dark:text-amber-300">{{ t('book.lentTo') }} <strong>{{ book.lent_to }}</strong><span v-if="book.lent_at"> · {{ formatDate(book.lent_at) }}</span></span>
@@ -258,7 +424,7 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
       </section>
 
       <!-- Personal reading data -->
-      <section class="card space-y-4">
+      <section v-if="!book.wishlist" class="card space-y-4">
         <h2 class="flex items-center gap-2 font-semibold"><BookOpen class="h-5 w-5 text-brand-600" />{{ t('book.personal') }}</h2>
         <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 sm:grid-cols-4 dark:bg-stone-800">
           <button
@@ -307,6 +473,23 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             <button class="btn-primary" :disabled="saving">{{ t('common.save') }}</button>
           </div>
         </form>
+        <!-- Re-reads -->
+        <div class="space-y-2 border-t border-stone-200 pt-3 text-sm dark:border-stone-800">
+          <div class="flex flex-wrap items-center gap-2">
+            <History class="h-4 w-4 text-stone-500" />
+            <span class="flex-1 text-stone-600 dark:text-stone-400">{{ readCount > 1 ? t('book.readTimes', { n: readCount }) : t('book.earlierReads') }}</span>
+            <button v-if="personal.reading_status === 'read'" class="btn-secondary !py-1.5 text-sm" :disabled="!store.online || saving" @click="readAgain">
+              <RotateCcw class="h-4 w-4" />{{ t('book.readAgain') }}
+            </button>
+            <button class="btn-ghost !px-2 !py-1.5 text-sm" :disabled="!store.online" @click="openAddRead"><Plus class="h-4 w-4" />{{ t('book.addRead') }}</button>
+          </div>
+          <ul v-if="earlierReads.length" class="space-y-1">
+            <li v-for="read in earlierReads" :key="read.id" class="flex items-center justify-between rounded-lg bg-stone-100 px-3 py-1.5 dark:bg-stone-800">
+              <span>{{ readPeriod(read) }}</span>
+              <button class="btn-ghost !p-1" :disabled="!store.online" :aria-label="t('common.delete')" @click="deleteRead(read)"><X class="h-4 w-4" /></button>
+            </li>
+          </ul>
+        </div>
         <div v-if="book.readers?.length" class="border-t border-stone-200 pt-3 text-sm dark:border-stone-800">
           <div class="mb-1 text-xs text-stone-500">{{ t('book.otherReaders') }}</div>
           <div v-for="r in book.readers" :key="r.username" class="flex items-center justify-between">
@@ -332,7 +515,8 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
         <p v-if="book.created_by_name" class="mt-3 text-xs text-stone-500">{{ t('book.addedBy', { name: book.created_by_name }) }} · {{ formatDate(book.created_at) }}</p>
       </section>
 
-      <div class="flex gap-2">
+      <!-- Somebody else's shared wish: look, buy as a gift – but not change it -->
+      <div v-if="!book.wishlist || book.wished" class="flex gap-2">
         <RouterLink :to="`/books/${book.id}/edit`" class="btn-secondary flex-1"><Pencil class="h-4 w-4" />{{ t('common.edit') }}</RouterLink>
         <button class="btn-ghost text-red-600" :disabled="!store.online" @click="remove"><Trash2 class="h-4 w-4" />{{ t('common.delete') }}</button>
       </div>
@@ -352,6 +536,28 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
         <input id="lend_to" v-model="lendName" class="input" maxlength="100" required autofocus />
         <div class="flex justify-end gap-2">
           <button type="button" class="btn-secondary" @click="showLend = false">{{ t('common.cancel') }}</button>
+          <button class="btn-primary">{{ t('common.save') }}</button>
+        </div>
+      </form>
+    </BaseModal>
+
+    <BaseModal v-if="showAddRead" :title="t('book.addReadTitle')" @close="showAddRead = false">
+      <form class="space-y-3" @submit.prevent="addRead">
+        <p class="text-sm text-stone-600 dark:text-stone-400">{{ t('book.addReadHint') }}</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label" for="read_started">{{ t('book.started') }}</label>
+            <input id="read_started" v-model="newRead.started_at" type="date" class="input" />
+            <p v-if="readErrors.started_at" class="field-error">{{ fieldError(readErrors.started_at) }}</p>
+          </div>
+          <div>
+            <label class="label" for="read_finished">{{ t('book.finished') }}</label>
+            <input id="read_finished" v-model="newRead.finished_at" type="date" class="input" :max="todayIso()" required />
+            <p v-if="readErrors.finished_at" class="field-error">{{ fieldError(readErrors.finished_at) }}</p>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn-secondary" @click="showAddRead = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary">{{ t('common.save') }}</button>
         </div>
       </form>

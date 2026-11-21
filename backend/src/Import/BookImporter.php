@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BookSpot\Import;
 
 use BookSpot\App;
+use BookSpot\BookService;
 use BookSpot\Config;
 use BookSpot\Database;
 use BookSpot\Dates;
@@ -50,9 +51,14 @@ final class BookImporter
     private array $summary = [];
     /** @var array<string, true> */
     private array $seenInFile = [];
+    /** @var array{library_name: ?string, library_loan_days: ?int}|null library defaults of the importing user */
+    private ?array $libraryDefaults = null;
+
+    /** Loan period for library loans when the user has not set one (Onleihe and many libraries: 3 weeks). */
+    public const DEFAULT_LOAN_DAYS = 21;
 
     /**
-     * @param array{dry_run?: bool, overwrite_personal?: bool, overwrite_location?: bool, create_shelves?: bool, shelf_name?: string, import_personal?: bool} $options
+     * @param array{dry_run?: bool, overwrite_personal?: bool, overwrite_location?: bool, take_over_loans?: bool, create_shelves?: bool, shelf_name?: string, import_personal?: bool} $options
      */
     public function __construct(
         private readonly Database $db,
@@ -72,6 +78,7 @@ final class BookImporter
             'created' => 0,
             'linked' => 0,
             'updated' => 0,
+            'loans_taken_over' => 0,
             'personal_saved' => 0,
             'skipped' => 0,
             'errors' => 0,
@@ -134,6 +141,11 @@ final class BookImporter
             }
             $this->seenInFile[$dedupeKey] = true;
 
+            if (self::isWish($row['acquired_via'] ?? '')) {
+                $this->importWish($book);
+                return;
+            }
+
             [$location, $locationFromNotes] = $this->resolveLocation($row);
             if ($location !== null) {
                 $book += ['shelf_id' => $location['shelf_id'], 'shelf_col' => $location['shelf_col'], 'shelf_row' => $location['shelf_row']];
@@ -147,6 +159,18 @@ final class BookImporter
             } else {
                 $bookId = (int) $existing['id'];
                 $changes = $this->mergeMissing($existing, $book);
+                if (!empty($existing['wishlist'])) {
+                    // Somebody wished for it and now it is in this collection (like BookService::create).
+                    $this->db->run('DELETE FROM wishes WHERE book_id = ?', [$bookId]);
+                    $changes = ['wishlist' => 0, 'entry_type' => $book['entry_type'], 'status' => $book['status']]
+                        + array_intersect_key($book, array_flip(['loan_from', 'loan_start', 'loan_due', 'loan_user_id', 'shelf_id', 'shelf_col', 'shelf_row']))
+                        + $changes;
+                }
+                $loan = $this->loanTakeOver($existing, $book);
+                if ($loan !== []) {
+                    $changes = $loan + $changes;
+                    $this->summary['loans_taken_over']++;
+                }
                 if ($changes !== []) {
                     $changes['updated_at'] = App::nowString();
                     $this->db->update('books', $changes, ['id' => $bookId]);
@@ -207,7 +231,7 @@ final class BookImporter
         $acquired = Dates::parse($row['acquired_at'] ?? '');
         $coverUrl = trim($row['cover_url'] ?? '');
 
-        return [
+        $book = [
             'isbn13' => $isbn13,
             'isbn10' => $isbn10,
             'asin' => $asin,
@@ -226,6 +250,74 @@ final class BookImporter
             'entry_type' => self::entryType($row['acquired_via'] ?? ''),
             'status' => 'active',
         ];
+        if ($book['entry_type'] === 'library_loan') {
+            $book = array_merge($book, $this->libraryLoan($book['acquired_at']));
+        }
+        return $book;
+    }
+
+    /** "Erhalten als: Wunschliste" (BookSpot's export) – a wish, not part of the collection. */
+    public static function isWish(string $acquiredVia): bool
+    {
+        return (bool) preg_match('/^(wunschliste|wishlist)$/u', mb_strtolower(trim($acquiredVia)));
+    }
+
+    /** @param array<string, mixed> $book */
+    private function importWish(array $book): void
+    {
+        $existing = $this->findExisting($book);
+        if ($existing === null) {
+            $now = App::nowString();
+            $loanless = array_diff_key($book, array_flip(['loan_from', 'loan_start', 'loan_due', 'loan_user_id']));
+            $bookId = $this->db->insert('books', ['entry_type' => 'owned', 'status' => 'active', 'wishlist' => 1] + $loanless
+                + ['created_by' => $this->userId, 'created_at' => $now, 'updated_at' => $now]);
+            $this->summary['created']++;
+        } else {
+            $bookId = (int) $existing['id'];
+            $this->summary['linked']++;
+        }
+        if ($this->db->value('SELECT id FROM wishes WHERE user_id = ? AND book_id = ?', [$this->userId, $bookId]) === null) {
+            $this->db->insert('wishes', ['user_id' => $this->userId, 'book_id' => $bookId, 'created_at' => App::nowString()]);
+        }
+    }
+
+    /**
+     * Loan fields of a library loan from the CSV: borrowed on the received date,
+     * due after the user's default loan period (Settings → My library, otherwise
+     * 3 weeks). Loans that are already due count as returned – e-book loans
+     * (Onleihe) end by themselves, nobody has to remember them.
+     *
+     * @return array<string, mixed>
+     */
+    private function libraryLoan(?string $start): array
+    {
+        $this->libraryDefaults ??= $this->db->one('SELECT library_name, library_loan_days FROM users WHERE id = ?', [$this->userId]) ?? [];
+        $days = (int) ($this->libraryDefaults['library_loan_days'] ?? 0) ?: self::DEFAULT_LOAN_DAYS;
+        $due = $start === null ? null : BookService::addDays($start, $days);
+        return [
+            'loan_from' => $this->libraryDefaults['library_name'] ?? null,
+            'loan_start' => $start,
+            'loan_due' => $due,
+            'loan_user_id' => $this->userId,
+            'status' => $due !== null && $due < App::today() ? 'returned' : 'active',
+        ];
+    }
+
+    /**
+     * Option "take over loans": a book imported earlier as own book (older versions
+     * did not recognise "Leihe") that the CSV lists as library loan becomes one.
+     * Only books the importing user added and without a shelf place – a shelved book really is one's own.
+     *
+     * @return array<string, mixed>
+     */
+    private function loanTakeOver(array $existing, array $book): array
+    {
+        if (empty($this->options['take_over_loans']) || $book['entry_type'] !== 'library_loan'
+            || $existing['entry_type'] !== 'owned' || $existing['shelf_id'] !== null || isset($book['shelf_id'])
+            || (int) ($existing['created_by'] ?? 0) !== $this->userId) { // never somebody else's book
+            return [];
+        }
+        return array_intersect_key($book, array_flip(['entry_type', 'loan_from', 'loan_start', 'loan_due', 'loan_user_id', 'status']));
     }
 
     /** @return array<string, mixed>|null */
@@ -357,6 +449,7 @@ final class BookImporter
             }
             $this->db->update('user_books', $data, ['id' => (int) $existing['id']]);
         }
+        $this->saveEarlierReads($bookId, $row['earlier_reads'] ?? '');
         $this->summary['personal_saved']++;
     }
 
@@ -391,6 +484,38 @@ final class BookImporter
         $this->compartments = $shelves->compartmentIndex();
     }
 
+    /** Re-reads from the export column "Frühere Lesedurchgänge" (01.02.2023 – 15.02.2023; – 03.05.2024). */
+    private function saveEarlierReads(int $bookId, string $value): void
+    {
+        foreach (self::parseReads($value) as [$started, $finished]) {
+            $exists = $this->db->value(
+                'SELECT COUNT(*) FROM book_reads WHERE user_id = ? AND book_id = ? AND finished_at = ? AND ' . ($started === null ? 'started_at IS NULL' : 'started_at = ?'),
+                array_values(array_filter([$this->userId, $bookId, $finished, $started], fn ($v) => $v !== null))
+            );
+            if ((int) $exists === 0) {
+                $this->db->insert('book_reads', ['user_id' => $this->userId, 'book_id' => $bookId, 'started_at' => $started, 'finished_at' => $finished, 'created_at' => App::nowString()]);
+            }
+        }
+    }
+
+    /** @return list<array{0: ?string, 1: string}> [start, end] of every read with a valid end date */
+    public static function parseReads(string $value): array
+    {
+        $reads = [];
+        foreach (preg_split('/\s*;\s*/u', trim($value)) ?: [] as $part) {
+            $dates = preg_split('/\s*[–—]\s*|\s+-\s+|\s+bis\s+/u', trim($part)) ?: [];
+            if (count($dates) === 1) {
+                array_unshift($dates, '');
+            }
+            $started = Dates::parse($dates[0] ?? '');
+            $finished = Dates::parse($dates[1] ?? '');
+            if (is_string($finished)) {
+                $reads[] = [is_string($started) ? $started : null, $finished];
+            }
+        }
+        return $reads;
+    }
+
     public static function readingStatus(string $value): ?string
     {
         $v = mb_strtolower(trim($value));
@@ -410,7 +535,8 @@ final class BookImporter
     {
         $v = mb_strtolower(trim($value));
         return match (true) {
-            (bool) preg_match('/bibliothek|bücherei|buecherei|library|onleihe/u', $v) => 'library_loan',
+            // Bookstats: "Leihe" (e.g. Onleihe); "Ausleihe"/"geliehen" stay personal loans
+            (bool) preg_match('/bibliothek|bücherei|buecherei|library|onleihe|^leihe$/u', $v) => 'library_loan',
             (bool) preg_match('/geliehen|leihgabe|ausleihe|borrowed/u', $v) => 'personal_loan',
             default => 'owned',
         };

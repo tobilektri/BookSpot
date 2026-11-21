@@ -33,10 +33,13 @@ mb_internal_encoding('UTF-8');
 
 $isDev = Config::get('APP_ENV', 'production') === 'development';
 error_reporting(E_ALL);
-ini_set('display_errors', $isDev && PHP_SAPI === 'cli' ? '1' : '0');
-ini_set('log_errors', '1');
-if (is_writable(App::varDir())) {
-    ini_set('error_log', App::varDir() . '/error.log');
+// Hosts may disable single functions (disable_functions) – PHP 8 then treats them as undefined.
+if (function_exists('ini_set')) {
+    ini_set('display_errors', $isDev && PHP_SAPI === 'cli' ? '1' : '0');
+    ini_set('log_errors', '1');
+    if (is_writable(App::varDir())) {
+        ini_set('error_log', App::varDir() . '/error.log');
+    }
 }
 
 // Warnings become exceptions (fail loudly); notices and deprecations – e.g. library
@@ -46,7 +49,7 @@ set_error_handler(static function (int $severity, string $message, string $file,
         return false;
     }
     if (in_array($severity, [E_NOTICE, E_USER_NOTICE, E_DEPRECATED, E_USER_DEPRECATED], true)) {
-        error_log("[BookSpot] notice: $message in $file:$line");
+        App::log("[BookSpot] notice: $message in $file:$line");
         return true;
     }
     throw new ErrorException($message, 0, $severity, $file, $line);

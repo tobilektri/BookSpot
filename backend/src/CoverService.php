@@ -13,7 +13,8 @@ namespace BookSpot;
  *
  * Sources in order: the book's cover_url, then Open Library and the German
  * National Library's cover service (publisher covers from the VLB) by ISBN –
- * for German ISBNs (978-3) the DNB first. Results
+ * for German ISBNs (978-3) the DNB first – and, only when the operator enables
+ * it (COVER_AMAZON=true), Amazon by ASIN/ISBN-10. Results
  * are remembered (cover_status) so missing covers are not requested again on
  * every page view: "none" is retried after 30 days, transient errors (rate
  * limit, network) after an hour.
@@ -21,6 +22,7 @@ namespace BookSpot;
 final class CoverService
 {
     private const MAX_BYTES = 4 * 1024 * 1024;
+    private const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
     private const MAX_HEIGHT = 600;
     private const RETRY_ERROR_MINUTES = 60;
     private const RETRY_NONE_DAYS = 30;
@@ -52,10 +54,41 @@ final class CoverService
         return $dir;
     }
 
-    /** Version string for the cover URL: changes when the source of the cover changes. */
+    /** Version string for the cover URL: changes when the source of the cover changes (or a photo is uploaded). */
     public static function version(array $book): string
     {
-        return substr(md5((string) ($book['cover_url'] ?? '') . '|' . ($book['isbn13'] ?? '')), 0, 8);
+        $source = (string) ($book['cover_url'] ?? '') . '|' . ($book['isbn13'] ?? '');
+        if (!empty($book['cover_uploaded_at'])) {
+            $source .= '|' . $book['cover_uploaded_at'];
+        }
+        return substr(md5($source), 0, 8);
+    }
+
+    /**
+     * Own cover (photo or image file) for books no source has a cover for. It is
+     * validated and scaled like downloaded covers and never replaced by them.
+     *
+     * @throws ApiException invalid_image
+     */
+    public function upload(int $bookId, string $path): void
+    {
+        $this->db->one('SELECT id FROM books WHERE id = ?', [$bookId]) ?? throw ApiException::notFound('book_not_found');
+        $body = is_file($path) && filesize($path) <= self::MAX_UPLOAD_BYTES ? (string) file_get_contents($path) : '';
+        $stored = $body === '' ? null : $this->store($bookId, $body, self::MAX_UPLOAD_BYTES);
+        if ($stored === null) {
+            throw new ApiException('invalid_image', 422);
+        }
+        $now = App::nowString();
+        $this->db->update('books', [
+            'cover_file' => $stored, 'cover_status' => 'ok', 'cover_checked_at' => $now, 'cover_uploaded_at' => $now, 'updated_at' => $now,
+        ], ['id' => $bookId]);
+    }
+
+    /** Removes an uploaded cover; the cover sources are asked again. */
+    public function removeUpload(int $bookId): void
+    {
+        $this->forget($bookId);
+        $this->db->update('books', ['cover_uploaded_at' => null, 'updated_at' => App::nowString()], ['id' => $bookId]);
     }
 
     /**
@@ -65,7 +98,7 @@ final class CoverService
      */
     public function ensure(int $bookId): ?array
     {
-        $book = $this->db->one('SELECT id, isbn13, cover_url, cover_file, cover_status, cover_checked_at FROM books WHERE id = ?', [$bookId]);
+        $book = $this->db->one('SELECT id, isbn13, isbn10, asin, cover_url, cover_file, cover_status, cover_checked_at FROM books WHERE id = ?', [$bookId]);
         if ($book === null) {
             return null;
         }
@@ -98,7 +131,8 @@ final class CoverService
             }
             $response = $this->download($url);
             if ($provider !== null) {
-                if ($response['status'] === 429 || $response['status'] === 403) {
+                // Amazon throttles with 503 as well.
+                if ($response['status'] === 429 || $response['status'] === 403 || ($response['status'] === 503 && $provider === 'amazon_covers')) {
                     $this->limiter->penalize($provider);
                 } elseif ($response['status'] === 200) {
                     $this->limiter->recover($provider);
@@ -137,7 +171,7 @@ final class CoverService
         $processed = 0;
         $stored = 0;
         $rows = $this->db->all(
-            "SELECT id, isbn13, cover_url, cover_file, cover_status, cover_checked_at FROM books
+            "SELECT id, isbn13, isbn10, asin, cover_url, cover_file, cover_status, cover_checked_at FROM books
              WHERE cover_file IS NULL AND (cover_status IS NULL OR cover_status = 'error')
                AND (cover_url IS NOT NULL OR isbn13 IS NOT NULL)
              ORDER BY cover_checked_at IS NOT NULL, cover_checked_at, id LIMIT " . max(1, min(200, $limit))
@@ -172,7 +206,7 @@ final class CoverService
         if (is_string($file) && $file !== '') {
             @unlink(self::dir() . '/' . basename($file));
         }
-        $this->db->run('UPDATE books SET cover_file = NULL, cover_status = NULL, cover_checked_at = NULL WHERE id = ?', [$bookId]);
+        $this->db->run('UPDATE books SET cover_file = NULL, cover_status = NULL, cover_checked_at = NULL, cover_uploaded_at = NULL WHERE id = ?', [$bookId]);
     }
 
     /** @return list<string> */
@@ -186,7 +220,52 @@ final class CoverService
         if (!empty($book['isbn13'])) {
             array_push($urls, ...self::isbnCandidates((string) $book['isbn13'], 'L'));
         }
+        if (($amazon = self::amazonCandidate($book)) !== null) {
+            $urls[] = $amazon;
+        }
         return array_values(array_unique($urls));
+    }
+
+    /**
+     * Amazon product image by ASIN (= ISBN-10 for printed books, B0… for Kindle
+     * editions). Off by default – Amazon's conditions of use do not allow it; the
+     * operator decides (COVER_AMAZON). Missing covers come back as a 1×1 GIF,
+     * which store() rejects like other placeholders.
+     */
+    private static function amazonCandidate(array $book): ?string
+    {
+        if (!Config::bool('COVER_AMAZON', false)) {
+            return null;
+        }
+        $asin = strtoupper(trim((string) ($book['asin'] ?? '')));
+        if (!preg_match('/^(B0[0-9A-Z]{8}|\d{9}[\dX])$/', $asin)) {
+            $asin = (string) ($book['isbn10'] ?? '');
+            if ($asin === '' && !empty($book['isbn13'])) {
+                $asin = (string) (Isbn::to10((string) $book['isbn13']) ?? ''); // 979… ISBNs have no ISBN-10
+            }
+        }
+        return preg_match('/^(B0[0-9A-Z]{8}|\d{9}[\dX])$/', $asin) ? 'https://images-na.ssl-images-amazon.com/images/P/' . $asin . '.01.LZZZZZZZ.jpg' : null;
+    }
+
+    /**
+     * Sources enabled since the last run (e.g. COVER_AMAZON switched on): books
+     * that had no cover anywhere are tried again now instead of after 30 days.
+     */
+    public function retryWhenSourcesChanged(): int
+    {
+        $current = array_keys(array_filter(['dnb' => Config::bool('COVER_DNB', true), 'amazon' => Config::bool('COVER_AMAZON', false)]));
+        $stored = $this->db->value("SELECT value FROM settings WHERE name = 'cover_sources'");
+        $previous = is_string($stored) ? array_filter(explode(',', $stored)) : ['dnb']; // DNB covers exist since 1.7.3 (migration 009)
+        $added = array_diff($current, $previous);
+        $reset = 0;
+        if ($added !== []) {
+            $reset = $this->db->run("UPDATE books SET cover_status = NULL, cover_checked_at = NULL WHERE cover_status = 'none' AND cover_file IS NULL")->rowCount();
+        }
+        if (!is_string($stored) || $stored !== implode(',', $current)) {
+            $this->db->run("DELETE FROM settings WHERE name = 'cover_sources'");
+            $this->db->insert('settings', ['name' => 'cover_sources', 'value' => implode(',', $current)]);
+        }
+        return $reset;
     }
 
     /** @return list<string> */
@@ -215,15 +294,16 @@ final class CoverService
         return match (true) {
             (bool) preg_match('#^https://covers\.openlibrary\.org/b/(isbn|olid)/#', $url) => 'open_library_covers',
             str_starts_with($url, 'https://portal.dnb.de/opac/mvb/cover') => 'dnb_covers',
+            str_starts_with($url, 'https://images-na.ssl-images-amazon.com/images/P/') => 'amazon_covers',
             default => null,
         };
     }
 
-    /** Network errors, rate limits and server errors are worth retrying; Open Library rate-limits with 403. */
+    /** Network errors, rate limits and server errors are worth retrying; Open Library and Amazon rate-limit with 403. */
     private static function isTransient(int $status, string $url): bool
     {
         return $status === 0 || $status === 429 || $status >= 500
-            || ($status === 403 && str_contains($url, 'covers.openlibrary.org'));
+            || ($status === 403 && (str_contains($url, 'covers.openlibrary.org') || str_contains($url, 'images-na.ssl-images-amazon.com')));
     }
 
     private function due(array $book): bool
@@ -255,9 +335,9 @@ final class CoverService
      * Validates the image and stores it (downscaled to MAX_HEIGHT as JPEG when GD
      * is available). Returns the file name or null for invalid images.
      */
-    private function store(int $bookId, string $body): ?string
+    private function store(int $bookId, string $body, int $maxBytes = self::MAX_BYTES): ?string
     {
-        if (strlen($body) > self::MAX_BYTES) {
+        if (strlen($body) > $maxBytes) {
             return null;
         }
         $info = @getimagesizefromstring($body);
@@ -308,6 +388,9 @@ final class CoverService
         }
         if ($isbn13 !== null) {
             array_push($candidates, ...self::isbnCandidates($isbn13, 'M'));
+            if (($amazon = self::amazonCandidate(['isbn13' => $isbn13])) !== null) {
+                $candidates[] = $amazon;
+            }
         }
         foreach ($candidates as $candidate) {
             $response = $this->download($candidate);
@@ -337,13 +420,13 @@ final class CoverService
             return null;
         }
         $port = (int) ($parts['port'] ?? ($scheme === 'https' ? 443 : 80));
-        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+        $ips = NetworkGuard::resolve($host); // A and AAAA – curl could otherwise pick an unchecked one
         if ($ips === []) {
             return null;
         }
         if (!Config::bool('COVER_ALLOW_PRIVATE_HOSTS', false)) {
             foreach ($ips as $ip) {
-                if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                if (!NetworkGuard::isPublicIp($ip)) {
                     return null;
                 }
             }
@@ -373,25 +456,28 @@ final class CoverService
                 CURLOPT_USERAGENT => $userAgent,
                 CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
                 // Connect to the IP that was checked (no DNS rebinding between check and request).
-                CURLOPT_RESOLVE => [$target['host'] . ':' . $target['port'] . ':' . $target['ip']],
+                CURLOPT_RESOLVE => [$target['host'] . ':' . $target['port'] . ':' . (str_contains($target['ip'], ':') ? '[' . $target['ip'] . ']' : $target['ip'])],
+                // Never hold more than MAX_BYTES in memory, whatever the server sends.
+                CURLOPT_NOPROGRESS => false,
+                CURLOPT_XFERINFOFUNCTION => static fn ($ch, int $total, int $received): int => $received > self::MAX_BYTES ? 1 : 0,
             ]);
             $body = curl_exec($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             $location = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
-            curl_close($ch);
+            if (curl_errno($ch) === CURLE_ABORTED_BY_CALLBACK) {
+                return ['status' => -1, 'body' => null]; // larger than any cover: not worth retrying
+            }
             if ($status >= 300 && $status < 400 && $location !== '') {
                 return $redirects > 0 ? $this->download($location, $redirects - 1) : ['status' => -1, 'body' => null];
             }
             return ['status' => is_string($body) ? $status : 0, 'body' => is_string($body) ? $body : null];
         }
-        $context = stream_context_create(['http' => ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'ignore_errors' => true, 'follow_location' => 0]]);
-        $body = @file_get_contents($url, false, $context);
-        $status = 0;
+        $response = HttpStream::get($url, ['timeout' => 10, 'header' => "User-Agent: $userAgent\r\n", 'follow_location' => 0], $target, self::MAX_BYTES);
+        $status = $response['status'];
+        $body = $response['body'];
         $location = '';
-        foreach ($http_response_header ?? [] as $header) {
-            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m)) {
-                $status = (int) $m[1];
-            } elseif (stripos($header, 'Location:') === 0) {
+        foreach ($response['headers'] as $header) {
+            if (stripos($header, 'Location:') === 0) {
                 $location = trim(substr($header, 9));
             }
         }
@@ -401,6 +487,6 @@ final class CoverService
             }
             return $redirects > 0 ? $this->download($location, $redirects - 1) : ['status' => -1, 'body' => null];
         }
-        return ['status' => $body === false ? 0 : $status, 'body' => $body === false ? null : $body];
+        return ['status' => $status, 'body' => $body];
     }
 }

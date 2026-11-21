@@ -58,6 +58,31 @@ final class AuthTest extends TestCase
         self::assertSame('anna', $auth->attemptLogin('anna', 'long-password', '8.8.8.8')['username']);
     }
 
+    public function testOwnLoginDoesNotResetFailuresAgainstOtherAccounts(): void
+    {
+        $auth = new Auth($this->db);
+        $auth->register('anna', 'anna@example.org', 'long-password');
+        $auth->register('ben', 'ben@example.org', 'other-password', force: true);
+        $guess = function () use ($auth): void {
+            try {
+                $auth->attemptLogin('anna', 'guess', '9.9.9.9');
+            } catch (ApiException) {
+            }
+        };
+        for ($i = 0; $i < 9; $i++) {
+            $guess();
+        }
+        // Ben signs in from the same address in between – Anna's failed guesses keep counting.
+        self::assertSame('ben', $auth->attemptLogin('ben', 'other-password', '9.9.9.9')['username']);
+        $guess();
+        try {
+            $auth->attemptLogin('ben', 'other-password', '9.9.9.9');
+            self::fail('not throttled');
+        } catch (ApiException $e) {
+            self::assertSame(429, $e->getCode());
+        }
+    }
+
     public function testValidationAndProfileUpdate(): void
     {
         $auth = new Auth($this->db);

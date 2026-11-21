@@ -8,7 +8,7 @@ import { loadCatalog } from '../lib/catalog.js'
 import { invalidateShelves } from '../lib/shelves.js'
 
 const file = ref(null)
-const options = reactive({ create_shelves: true, shelf_name: '', overwrite_personal: true, overwrite_location: false })
+const options = reactive({ create_shelves: true, shelf_name: '', overwrite_personal: true, overwrite_location: false, take_over_loans: false })
 const busy = ref(false)
 const result = ref(null)
 const error = ref('')
@@ -59,6 +59,10 @@ const layoutText = (shelf) => shelf.columns.map((c) => `${c.label} (${c.rows})`)
     </div>
     <label class="flex items-start gap-2 text-sm"><input v-model="options.overwrite_personal" type="checkbox" class="mt-1 accent-brand-600" />{{ t('settings.overwritePersonal') }}</label>
     <label class="flex items-start gap-2 text-sm"><input v-model="options.overwrite_location" type="checkbox" class="mt-1 accent-brand-600" />{{ t('settings.overwriteLocation') }}</label>
+    <label class="flex items-start gap-2 text-sm">
+      <input v-model="options.take_over_loans" type="checkbox" class="mt-1 accent-brand-600" />
+      <span>{{ t('settings.takeOverLoans') }}<span class="block text-xs text-stone-500">{{ t('settings.takeOverLoansHint') }}</span></span>
+    </label>
 
     <div class="flex flex-wrap gap-2">
       <button class="btn-secondary" :disabled="!file || busy" @click="run(true)">{{ t('settings.analyse') }}</button>
@@ -73,6 +77,7 @@ const layoutText = (shelf) => shelf.columns.map((c) => `${c.label} (${c.rows})`)
         {{ t(result.dry_run ? 'settings.summaryDry' : 'settings.summary', { created: result.created, linked: result.linked + result.updated, skipped: result.skipped, errors: result.errors }) }}
       </p>
       <p>{{ t('settings.placed', { n: result.placed }) }}</p>
+      <p v-if="result.loans_taken_over">{{ t(result.dry_run ? 'settings.loansTakenOverDry' : 'settings.loansTakenOver', { n: result.loans_taken_over }) }}</p>
       <p v-for="shelf in result.shelves_created" :key="shelf.id">{{ t('settings.shelfCreated', { name: shelf.name, layout: layoutText(shelf) }) }}</p>
       <div v-if="Object.keys(result.unmatched_locations).length" class="rounded-lg bg-amber-50 p-2 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
         <p class="flex items-center gap-1 font-medium"><TriangleAlert class="h-4 w-4" />{{ t('settings.unmatched') }}</p>

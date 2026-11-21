@@ -46,6 +46,10 @@ Notable suites:
 | `BatchImporterTest` | batch scanning, queue retries, parallel claims, 60 scans without a single 429 |
 | `ImportTest` | Bookstats CSV incl. location codes |
 | `MetadataServiceTest`, `CoverServiceTest` | sources, merging, local covers, SSRF protection |
+| `HttpTest` | real HTTP requests (curl and stream fallback) against a local `php -S` server |
+
+Deprecations, notices and warnings triggered by BookSpot's own code fail the test run, so the PHP 8.5
+job in CI catches functions a new PHP version deprecates (those of libraries are ignored).
 
 ## Frontend
 

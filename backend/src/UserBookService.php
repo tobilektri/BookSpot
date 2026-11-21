@@ -35,6 +35,7 @@ final class UserBookService
     {
         return $this->db->transaction(function () use ($userId, $bookId, $input, $autoFill) {
             $book = $this->db->one('SELECT id, pages FROM books WHERE id = ?', [$bookId]) ?? throw ApiException::notFound('book_not_found');
+            BookService::assertWritable($this->db, $bookId, $userId);
             $existing = $this->db->one('SELECT * FROM user_books WHERE user_id = ? AND book_id = ?', [$userId, $bookId]);
 
             if ($existing !== null && !empty($input['client_updated_at'])) {

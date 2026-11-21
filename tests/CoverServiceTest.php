@@ -175,6 +175,108 @@ final class CoverServiceTest extends TestCase
         self::assertSame('none', $this->db->value('SELECT cover_status FROM books WHERE id = ?', [$book['id']]));
     }
 
+    public function testUploadedCoverIsStoredAndNeverReplacedBySources(): void
+    {
+        $book = $this->books->create(['title' => 'Ohne Cover', 'isbn' => '9783548283951'], $this->user['id']);
+        $calls = 0;
+        $service = new CoverService($this->db, function () use (&$calls) {
+            $calls++;
+            return ['status' => 404, 'body' => null];
+        });
+        self::assertNull($service->ensure($book['id']));
+        $asked = $calls;
+        self::assertFalse($this->books->get($book['id'], $this->user['id'])['has_cover']);
+        $versionBefore = $this->books->get($book['id'], $this->user['id'])['cover_version'];
+
+        $photo = tempnam(sys_get_temp_dir(), 'bookspot-photo');
+        file_put_contents($photo, self::png(900, 1400));
+        $service->upload($book['id'], $photo);
+        unlink($photo);
+
+        $after = $this->books->get($book['id'], $this->user['id']);
+        self::assertTrue($after['has_cover']);
+        self::assertTrue($after['cover_uploaded']);
+        self::assertNotSame($versionBefore, $after['cover_version'], 'new URL, so cached placeholders are not reused');
+        $file = $service->ensure($book['id']);
+        self::assertSame(600, getimagesize($file['path'])[1], 'scaled down like downloaded covers');
+        self::assertSame(['processed' => 0, 'stored' => 0, 'remaining' => 0], $service->prefetchBatch());
+        self::assertSame($asked, $calls, 'the sources are not asked again');
+
+        // Fixing the ISBN keeps the own photo.
+        $this->books->update($book['id'], ['isbn' => '9783404139873'], $this->user['id']);
+        self::assertTrue($this->books->get($book['id'], $this->user['id'])['cover_uploaded']);
+        self::assertNotNull($service->ensure($book['id']));
+
+        $service->removeUpload($book['id']);
+        self::assertFalse($this->books->get($book['id'], $this->user['id'])['cover_uploaded']);
+        self::assertSame([], glob(CoverService::dir() . '/*') ?: []);
+    }
+
+    public function testUploadRejectsNonImages(): void
+    {
+        $book = $this->books->create(['title' => 'X'], $this->user['id']);
+        $file = tempnam(sys_get_temp_dir(), 'bookspot-photo');
+        file_put_contents($file, '<?php echo "no image";');
+        try {
+            (new CoverService($this->db))->upload($book['id'], $file);
+            self::fail('expected invalid_image');
+        } catch (\BookSpot\ApiException $e) {
+            self::assertSame('invalid_image', $e->getMessage());
+        } finally {
+            unlink($file);
+        }
+        self::assertNull($this->db->value('SELECT cover_file FROM books WHERE id = ?', [$book['id']]));
+    }
+
+    public function testAmazonIsOnlyAskedWhenEnabled(): void
+    {
+        $book = ['isbn13' => '9783548283951', 'isbn10' => '3548283950'];
+        self::assertStringNotContainsString('amazon', implode(' ', CoverService::candidates($book)), 'off by default');
+
+        Config::set('COVER_AMAZON', 'true');
+        try {
+            $amazon = 'https://images-na.ssl-images-amazon.com/images/P/';
+            self::assertSame($amazon . '3548283950.01.LZZZZZZZ.jpg', array_slice(CoverService::candidates($book), -1)[0], 'last, after the open sources');
+            self::assertSame($amazon . 'B00ABCDEFG.01.LZZZZZZZ.jpg', array_slice(CoverService::candidates(['asin' => 'b00abcdefg'] + $book), -1)[0], 'Kindle edition by ASIN');
+            self::assertSame($amazon . '3548283950.01.LZZZZZZZ.jpg', array_slice(CoverService::candidates(['isbn13' => '9783548283951']), -1)[0], 'ISBN-10 derived');
+            self::assertStringNotContainsString('amazon', implode(' ', CoverService::candidates(['isbn13' => '9791032704001'])), '979 ISBNs have no ISBN-10');
+
+            // Amazon answers a 1×1 GIF when it has no cover: counts as "none".
+            $gif = base64_decode('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');
+            $missing = $this->books->create(['title' => 'Ohne', 'isbn' => '9783404139873'], $this->user['id']);
+            $found = $this->books->create(['title' => 'Mit', 'isbn' => '9783548283951'], $this->user['id']);
+            $service = new CoverService($this->db, function (string $url) use ($gif) {
+                if (!str_contains($url, 'amazon')) {
+                    return ['status' => 404, 'body' => null];
+                }
+                return str_contains($url, '3548283950') ? ['status' => 200, 'body' => self::png(100, 150)] : ['status' => 200, 'body' => $gif];
+            });
+            self::assertNull($service->ensure($missing['id']));
+            self::assertSame('none', $this->db->value('SELECT cover_status FROM books WHERE id = ?', [$missing['id']]));
+            self::assertNotNull($service->ensure($found['id']));
+        } finally {
+            Config::set('COVER_AMAZON', null);
+        }
+    }
+
+    public function testBooksWithoutCoverAreRetriedWhenASourceIsSwitchedOn(): void
+    {
+        $book = $this->books->create(['title' => 'Ohne', 'isbn' => '9783404139873'], $this->user['id']);
+        $service = new CoverService($this->db, fn () => ['status' => 404, 'body' => null]);
+        $service->ensure($book['id']);
+        self::assertSame(0, $service->retryWhenSourcesChanged(), 'nothing new: nothing to retry');
+        self::assertSame('none', $this->db->value('SELECT cover_status FROM books WHERE id = ?', [$book['id']]));
+
+        Config::set('COVER_AMAZON', 'true');
+        try {
+            self::assertSame(1, $service->retryWhenSourcesChanged());
+            self::assertNull($this->db->value('SELECT cover_status FROM books WHERE id = ?', [$book['id']]));
+            self::assertSame(0, $service->retryWhenSourcesChanged(), 'only once');
+        } finally {
+            Config::set('COVER_AMAZON', null);
+        }
+    }
+
     public function testPreviewIsFetchedButNotStored(): void
     {
         $calls = [];
