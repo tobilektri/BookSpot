@@ -16,7 +16,7 @@ shared hosting usually the case). With nginx use the `location ^~ /api/v1` block
 
 **“server_error” right after the upload**
 Check `var/error.log` (or the PHP error log of your host). Common causes: wrong database credentials
-in `.env`, PHP older than 8.2, `var/` not writable. Temporarily setting `APP_ENV=development` adds the
+in `.env`, PHP older than 8.4, `var/` not writable. Temporarily setting `APP_ENV=development` adds the
 error message to API responses.
 
 **“server_error” on every ISBN lookup with PHP 8.5, `Call to undefined function …error_log()` in the log**

@@ -43,7 +43,7 @@ Questions marked ❓ need an answer before building.
   `docs/images`; compose comment says "hourly" (it is every 10 minutes); CI never builds the images.
 - Release bundle: add `docs/`, `README.de.md`, `composer.lock`; `contents: write` only for tags;
   `vendor/.htaccess` (deny) for installs whose document root is the project folder.
-- `composer.json`: `config.platform.php = 8.2.0`.
+- `composer.json`: `config.platform.php = 8.4.0`.
 - Docs: `VAPID_SUBJECT` really defaults to `APP_URL` (leave it empty in `.env.example`/compose);
   document `SESSION_USE_VAR_DIR`, the caps of the cron batch settings, `DB_NAME`/`DB_USER`
   defaults; German install guide misses the "old files can stay" note.

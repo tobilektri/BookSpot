@@ -4,7 +4,7 @@
 
 ## Local setup without Docker
 
-Requirements: PHP 8.2+ with `pdo_sqlite`, Composer, Node.js 22+.
+Requirements: PHP 8.4+ with `pdo_sqlite`, Composer, Node.js 22+.
 
 ```bash
 composer install
@@ -85,7 +85,7 @@ book data source so no real requests go out.
 
 `.github/workflows/ci.yml` runs on every push:
 
-- PHP 8.2 and 8.5 × SQLite and MariaDB: lint + PHPUnit,
+- PHP 8.4 and 8.5 × SQLite and MariaDB: lint + PHPUnit,
 - frontend build,
 - the **`bookspot-bundle`** artifact (`vendor/` + built frontend, ready for FTP upload),
 - on tags `v*`: a GitHub release with `bookspot.zip`.
