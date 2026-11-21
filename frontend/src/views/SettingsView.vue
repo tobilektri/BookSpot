@@ -11,6 +11,7 @@ import PushPanel from '../components/PushPanel.vue'
 import EnrichButton from '../components/EnrichButton.vue'
 import UserAdmin from '../components/UserAdmin.vue'
 import CronInfo from '../components/CronInfo.vue'
+import UpdatePanel from '../components/UpdatePanel.vue'
 import InstallGuide from '../components/InstallGuide.vue'
 import { install, installMethod, promptInstall } from '../lib/engagement.js'
 
@@ -164,6 +165,7 @@ const exportUrl = new URL('api/v1/export', document.baseURI).href
     <section class="card space-y-3 text-sm">
       <h2 class="flex items-center gap-2 font-semibold"><Info class="h-5 w-5 text-brand-600" />{{ t('settings.about') }}</h2>
       <p>{{ store.appName || appName }} · {{ t('settings.version', { v: store.version }) }} · <a href="https://github.com/tobilektri/BookSpot" class="text-brand-700 underline" target="_blank" rel="noopener">{{ t('settings.sourceCode') }}</a></p>
+      <UpdatePanel v-if="store.user?.role === 'admin'" />
       <div class="flex flex-wrap gap-2">
         <button class="btn-secondary" @click="store.showOnboarding = true"><GraduationCap class="h-4 w-4" />{{ t('onboarding.restart') }}</button>
         <button class="btn-secondary text-red-600" :disabled="!store.online" @click="doLogout"><LogOut class="h-4 w-4" />{{ t('auth.logout') }}</button>

@@ -143,6 +143,7 @@ final class Kernel
                 $r->post('/users/{id:\d+}/impersonate', [UserController::class, 'impersonate']);
                 $r->get('/admin/system', [AdminController::class, 'system']);
                 $r->post('/admin/cron-token', [AdminController::class, 'regenerateCronToken']);
+                $r->post('/admin/update-check', [AdminController::class, 'checkUpdate'])->middleware(new RateLimit('update_check', 10, 60));
             });
         });
 

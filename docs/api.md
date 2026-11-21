@@ -111,7 +111,8 @@ is how the drag & drop editor works). Compartments without origin are new and em
 | `PUT` · `DELETE /users/{id}` | admin | `{role, email, password}` / delete |
 | `POST /users/{id}/invite` | admin | (re)send the invitation link |
 | `POST /users/{id}/impersonate` | admin | continue as this user |
-| `GET /admin/system` · `POST /admin/cron-token` | admin | cron token, feature status / new token |
+| `GET /admin/system` · `POST /admin/cron-token` | admin | cron token, feature status, cached update status / new token |
+| `POST /admin/update-check` | admin | check GitHub Releases for a newer BookSpot version (`{force?: true}` bypasses 24 h cache) |
 
 ### Everything else
 

@@ -10,7 +10,7 @@ from Docker Compose – take precedence. An empty value means “use the default
 | Setting | Default | |
 |---|---|---|
 | `APP_URL` | – | Public URL, e.g. `https://books.example.org`. Used in invitation links, as contact in requests to the book data sources and as push sender fallback. |
-| `CONTACT_EMAIL` | – | Contact address sent in the User-Agent of requests to the book data sources (`BookSpot/1.10.0 (https://books.example.org; you@example.org)`), so they can reach you instead of blocking. Open Library then allows **3 instead of 1 request per second**. |
+| `CONTACT_EMAIL` | – | Contact address sent in the User-Agent of requests to the book data sources (`BookSpot/1.11.0 (https://books.example.org; you@example.org)`), so they can reach you instead of blocking. Open Library then allows **3 instead of 1 request per second**. |
 | `APP_NAME` | “SchmökerSpot” (German UI) / “BookSpot” (English UI) | Display name override. |
 | `APP_ENV` | `production` | `development` adds error details to API error responses – never in production. |
 | `APP_TIMEZONE` | `Europe/Berlin` | Used for due dates, “today”, statistics. |
@@ -86,6 +86,8 @@ See [metadata.md](metadata.md#rate-limits) for how they work.
 |---|---|---|
 | `CORS_ALLOWED_ORIGINS` | – | Other web front-ends that may call the API with the user's session (exact origins, comma separated). Empty = same origin only, which is what the app needs. Allowed origins can send authenticated requests, so only list trusted ones. |
 | `IMPORT_GENRE_BLOCKLIST` | – | Additional comma-separated “genres” the CSV import ignores (on top of the built-in list of Amazon categories). |
+| `UPDATE_CHECK` | `true` | Check GitHub Releases once a day (server-side, cached 24 h) for a newer BookSpot version and show a notice to admins. Set to `false` to disable completely. |
+| `UPDATE_CHECK_REPO` | `tobilektri/BookSpot` | Optional `owner/repo` override for the GitHub Releases update check (e.g. for forks). |
 
 ## PHP settings
 

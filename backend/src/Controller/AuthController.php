@@ -12,22 +12,29 @@ use BookSpot\Http\Response;
 use BookSpot\InviteService;
 use BookSpot\PushService;
 use BookSpot\Request;
+use BookSpot\UpdateService;
 
 final class AuthController extends Controller
 {
     /** App start: who am I, can I register, which features are available? */
     public function status(Request $request): array
     {
-        $auth = new Auth($this->db());
+        $db = $this->db();
+        $auth = new Auth($db);
+        $user = Auth::user();
         $impersonator = Auth::impersonator();
+        $appUpdate = ($user['role'] ?? null) === 'admin'
+            ? (new UpdateService($db))->cachedNotification()
+            : null;
         return [
-            'user' => Auth::user(),
+            'user' => $user,
             'impersonator' => $impersonator === null ? null : ['id' => $impersonator['id'], 'username' => $impersonator['username']],
             'registration_open' => $auth->registrationOpen(),
             'needs_setup' => $auth->userCount() === 0,
             'push_available' => PushService::available(),
             'app_name' => Config::get('APP_NAME'),
             'version' => App::VERSION,
+            'app_update' => $appUpdate,
         ];
     }
 

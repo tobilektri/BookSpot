@@ -9,6 +9,7 @@ use BookSpot\Auth;
 use BookSpot\Config;
 use BookSpot\Database;
 use BookSpot\RateLimiter;
+use BookSpot\UpdateService;
 use PDO;
 
 /**
@@ -30,6 +31,8 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         foreach (['OPEN_LIBRARY', 'DNB', 'GOOGLE_BOOKS', 'OPEN_LIBRARY_COVERS', 'DNB_COVERS', 'AMAZON_COVERS'] as $provider) {
             Config::set("RATE_LIMIT_$provider", '100000');
         }
+        // Tests never talk to api.github.com unless UpdateServiceTest opts in with a fake HTTP handler.
+        Config::set('UPDATE_CHECK', 'false');
         $dsn = getenv('TEST_DB_DSN') ?: 'sqlite::memory:';
         $pdo = new PDO($dsn, getenv('TEST_DB_USER') ?: null, getenv('TEST_DB_PASS') ?: null);
         if (str_starts_with($dsn, 'mysql:')) {
@@ -49,6 +52,9 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         App::setNow(null);
         App::setDb(null);
         Auth::setUser(null);
+        UpdateService::$defaultHttpGet = null;
+        Config::set('UPDATE_CHECK', null);
+        Config::set('UPDATE_CHECK_REPO', null);
         array_map('unlink', glob($this->rateLimitDir . '/*') ?: []);
         @rmdir($this->rateLimitDir);
         RateLimiter::$directory = null;
