@@ -5,10 +5,11 @@
     "license": "MIT",
     "require": {
         "php": ">=8.2",
-        "ext-pdo": "*",
         "ext-json": "*",
         "ext-mbstring": "*",
-        "minishlink/web-push": "^10.1"
+        "ext-pdo": "*",
+        "guzzlehttp/guzzle": "^7.9",
+        "minishlink/web-push": "^11.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.5"
@@ -26,7 +27,10 @@
     },
     "config": {
         "sort-packages": true,
-        "optimize-autoloader": true
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "php-http/discovery": false
+        }
     },
     "scripts": {
         "test": "phpunit"
