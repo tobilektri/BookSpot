@@ -11,7 +11,7 @@
         "minishlink/web-push": "^10.1"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11.5"
+        "phpunit/phpunit": "^13.4"
     },
     "suggest": {
         "ext-gmp": "Faster Web Push payload encryption",
