@@ -11,7 +11,7 @@ jedem Apache-basierten Hoster genauso.
 
 | | Pflicht | Empfohlen |
 |---|---|---|
-| PHP | 8.2 oder neuer | 8.5 |
+| PHP | 8.4 oder neuer | 8.5 |
 | PHP-Erweiterungen | `pdo_mysql` (oder `pdo_sqlite`), `mbstring`, `json`, `openssl` | `curl` (schnellere Abfragen), `gd` (verkleinert Cover), `dom` (Deutsche Nationalbibliothek), `gmp` (schnellere Push-Verschlüsselung) |
 | Datenbank | MySQL 8 / MariaDB 10.6+ mit `utf8mb4` – oder SQLite (ganz ohne Datenbankserver) | MariaDB (die CI-Tests laufen auf MariaDB 11.4) |
 | Webserver | Apache mit `mod_rewrite` und `.htaccess` (`AllowOverride All`) | – |

@@ -6,11 +6,6 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
-    ignore:
-      # PHPUnit 12+ needs PHP >= 8.3; BookSpot still supports PHP 8.2.
-      - dependency-name: phpunit/phpunit
-        update-types:
-          - version-update:semver-major
     groups:
       minor-and-patch:
         update-types:

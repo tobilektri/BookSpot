@@ -8,7 +8,7 @@
 A self-hosted, open-source Progressive Web App for your book collection – runs on plain PHP shared hosting or with Docker.
 
 [![CI](https://github.com/tobilektri/BookSpot/actions/workflows/ci.yml/badge.svg)](https://github.com/tobilektri/BookSpot/actions/workflows/ci.yml)
-![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777bb4)
+![PHP 8.4+](https://img.shields.io/badge/PHP-8.4%2B-777bb4)
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -68,7 +68,7 @@ shelf, and keep track of what everybody in the household is reading.
 
 ### Option 1 – shared hosting (no SSH, no Node.js)
 
-Any host with **PHP 8.2+** and **MySQL/MariaDB** (or SQLite) and HTTPS will do. The project is
+Any host with **PHP 8.4+** and **MySQL/MariaDB** (or SQLite) and HTTPS will do. The project is
 developed and tested on [Lima-City](https://www.lima-city.de/?cref=253166) *(referral link¹)*.
 
 1. Download `bookspot.zip` from the [releases](https://github.com/tobilektri/BookSpot/releases)
@@ -125,7 +125,7 @@ php -S localhost:8000 -t public backend/bin/dev-router.php
 
 ## Tech stack
 
-PHP 8.2+ (vanilla PDO, no framework, own small router) · MariaDB/MySQL or SQLite · Vue 3 + Vite +
+PHP 8.4+ (vanilla PDO, no framework, own small router) · MariaDB/MySQL or SQLite · Vue 3 + Vite +
 Tailwind CSS 4 · Dexie (IndexedDB) · Workbox service worker · Chart.js · ZXing / native
 `BarcodeDetector` · Web Push (VAPID). Tested with PHPUnit on SQLite and MariaDB.
 

@@ -10,7 +10,7 @@ and FTP is enough. This guide was written against [Lima-City](https://www.lima-c
 
 | | Required | Recommended |
 |---|---|---|
-| PHP | 8.2 or newer | 8.5 |
+| PHP | 8.4 or newer | 8.5 |
 | PHP extensions | `pdo_mysql` (or `pdo_sqlite`), `mbstring`, `json`, `openssl` | `curl` (faster lookups), `gd` (scales covers down), `dom` (German National Library), `gmp` (faster push encryption) |
 | Database | MySQL 8 / MariaDB 10.6+ with `utf8mb4` – or SQLite (no database server at all) | MariaDB (CI tests run on MariaDB 11.4) |
 | Web server | Apache with `mod_rewrite` and `.htaccess` (`AllowOverride All`) | – |
