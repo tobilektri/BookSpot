@@ -17,6 +17,9 @@ export function formatPrice(value) {
   return Number(value).toLocaleString(locale.value === 'en' ? 'en-GB' : 'de-DE', { style: 'currency', currency: 'EUR' })
 }
 
+/** Loan period when the user set none (Settings → My library) – the same as on the server. */
+export const DEFAULT_LOAN_DAYS = 21
+
 export function todayIso(offsetDays = 0) {
   const d = new Date()
   d.setDate(d.getDate() + offsetDays)

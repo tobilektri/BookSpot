@@ -25,7 +25,7 @@ Under *Settings → My library* everyone can store the name of their library and
   (“Use default period” brings it back),
 - **Extend** proposes the current due date + one loan period.
 
-Without your own setting, the form suggests 28 days.
+Without your own setting, a loan is due after 21 days (3 weeks, as with the Onleihe) – in the form, the CSV import and the wishlist alike.
 
 ## Keeping track
 

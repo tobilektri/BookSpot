@@ -178,15 +178,23 @@ async function toggleTorch() {
 }
 
 /** Catalogue lookup: found -> detail page, otherwise -> create dialog with metadata lookup. */
+// One lookup at a time: further codes read meanwhile are ignored, and a lookup that
+// finishes after the page was left does not navigate any more.
+let looking = false
+
 async function handleIsbn(isbn) {
   if (mode.value === 'batch') return handleBatchIsbn(isbn)
+  if (looking) return
+  looking = true
   status.value = t('scan.searching', { isbn })
   try {
     const result = await api(`v1/books/isbn/${isbn}`)
+    if (unmounted) return
     stop()
     if (result.found) router.push(`/books/${result.book.id}`)
     else router.push({ name: 'book-new', query: { isbn } })
   } catch (e) {
+    if (unmounted) return
     if (e.offline) {
       // Offline: search the cached catalogue.
       const hit = catalog.value.find((b) => b.isbn13 === isbn)
@@ -197,6 +205,8 @@ async function handleIsbn(isbn) {
     }
     status.value = errorMessage(e)
     scanner.value?.reset()
+  } finally {
+    looking = false
   }
 }
 

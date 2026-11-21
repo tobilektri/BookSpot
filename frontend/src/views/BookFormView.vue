@@ -7,7 +7,7 @@ import { t, errorMessage, fieldError } from '../lib/i18n.js'
 import { toast, store } from '../lib/store.js'
 import { patchBook, books as catalog } from '../lib/catalog.js'
 import { normalizeIsbn } from '../lib/isbn.js'
-import { todayIso, addDaysIso, formatDate } from '../lib/format.js'
+import { todayIso, addDaysIso, formatDate, DEFAULT_LOAN_DAYS } from '../lib/format.js'
 import { invalidateShelves } from '../lib/shelves.js'
 import LocationPicker from '../components/LocationPicker.vue'
 import BookCover from '../components/BookCover.vue'
@@ -34,7 +34,7 @@ const form = reactive({
   entry_type: 'owned',
   loan_from: '',
   loan_start: todayIso(),
-  loan_due: todayIso(28),
+  loan_due: todayIso(DEFAULT_LOAN_DAYS),
   lent_to: '',
   status: 'active',
 })
@@ -46,11 +46,12 @@ const busy = ref(false)
 const lookupState = ref('') // '', 'loading', 'found', 'none'
 const lookupSource = ref('')
 const loaded = ref(!props.id)
+const loadError = ref('') // editing: the book could not be loaded – never save a blank form over it
 
-// Library loans: due date = borrowing date + loan period (Settings → My library, otherwise 28 days).
+// Library loans: due date = borrowing date + loan period (Settings → My library, otherwise 21 days).
 // It follows the borrowing date until the due date is edited by hand.
 const loanDays = computed(() => store.user?.library_loan_days || null)
-const defaultDue = computed(() => (form.loan_start ? addDaysIso(form.loan_start, loanDays.value ?? 28) : ''))
+const defaultDue = computed(() => (form.loan_start ? addDaysIso(form.loan_start, loanDays.value ?? DEFAULT_LOAN_DAYS) : ''))
 const dueAuto = ref(!props.id)
 watch([() => form.entry_type, () => form.loan_start, loanDays], () => {
   if (form.entry_type === 'library_loan' && dueAuto.value && defaultDue.value) form.loan_due = defaultDue.value
@@ -93,7 +94,7 @@ onMounted(async () => {
       wishBook.value = Boolean(book.wishlist)
       savedCover.value = { id: book.id, cover_version: book.cover_version, has_cover: book.has_cover, cover_url: book.cover_url, isbn13: book.isbn13 }
     } catch (e) {
-      toast(errorMessage(e), 'error')
+      loadError.value = errorMessage(e)
     } finally {
       loaded.value = true
     }
@@ -204,7 +205,8 @@ const wishBook = ref(false) // editing a wished-only book
     <button class="btn-ghost -ml-2 !px-2" @click="router.back()"><ArrowLeft class="h-4 w-4" />{{ t('common.back') }}</button>
     <h1 class="font-serif text-2xl font-semibold">{{ isEdit ? t('book.editTitle') : t('book.newTitle') }}</h1>
 
-    <form v-if="loaded" class="space-y-4" novalidate @submit.prevent="submit">
+    <p v-if="loadError" class="card text-sm text-red-700">{{ loadError }}</p>
+    <form v-else-if="loaded" class="space-y-4" novalidate @submit.prevent="submit">
       <section class="card space-y-3">
         <div>
           <label class="label" for="isbn">{{ t('book.isbn') }}</label>
@@ -260,7 +262,7 @@ const wishBook = ref(false) // editing a wished-only book
           <div>
             <label class="label" for="format">{{ t('book.format') }}</label>
             <input id="format" v-model="form.format" class="input" list="format-options" maxlength="30" />
-            <datalist id="format-options"><option value="Taschenbuch" /><option value="Hardcover" /><option value="E-Book" /><option value="Hörbuch" /></datalist>
+            <datalist id="format-options"><option v-for="f in t('book.formatOptions').split(',')" :key="f" :value="f" /></datalist>
           </div>
         </div>
       </section>
@@ -308,7 +310,7 @@ const wishBook = ref(false) // editing a wished-only book
         <div v-else class="grid grid-cols-2 gap-3">
           <div class="col-span-2">
             <label class="label" for="loan_from">{{ form.entry_type === 'library_loan' ? t('book.library') : t('book.person') }}</label>
-            <input id="loan_from" v-model="form.loan_from" class="input" maxlength="150" :placeholder="form.entry_type === 'library_loan' ? 'Stadtbibliothek' : ''" />
+            <input id="loan_from" v-model="form.loan_from" class="input" maxlength="150" :placeholder="form.entry_type === 'library_loan' ? t('book.libraryPlaceholder') : ''" />
           </div>
           <div>
             <label class="label" for="loan_start">{{ t('book.loanStart') }}</label>
@@ -320,9 +322,9 @@ const wishBook = ref(false) // editing a wished-only book
             <p v-if="errors.loan_due" class="field-error">{{ fieldError(errors.loan_due) }}</p>
           </div>
           <p v-if="form.entry_type === 'library_loan'" class="col-span-2 -mt-1 text-xs text-stone-500">
-            <template v-if="dueAuto || form.loan_due === defaultDue">{{ t('book.dueAuto', { n: loanDays ?? 28 }) }}</template>
+            <template v-if="dueAuto || form.loan_due === defaultDue">{{ t('book.dueAuto', { n: loanDays ?? DEFAULT_LOAN_DAYS }) }}</template>
             <button v-else-if="defaultDue" type="button" class="font-medium text-brand-700 underline dark:text-brand-400" @click="useDefaultDue">
-              {{ t('book.useDefaultDue', { n: loanDays ?? 28, date: formatDate(defaultDue) }) }}
+              {{ t('book.useDefaultDue', { n: loanDays ?? DEFAULT_LOAN_DAYS, date: formatDate(defaultDue) }) }}
             </button>
             ·
             <RouterLink to="/settings#library" class="underline">{{ loanDays ? t('book.changeLoanDays') : t('book.setLoanDays') }}</RouterLink>

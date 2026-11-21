@@ -13,6 +13,9 @@ const busy = ref(false)
 const result = ref(null)
 const error = ref('')
 
+// Toast and result panel show the same numbers ("already there" includes updated books).
+const counts = (r) => ({ created: r.created, linked: r.linked + r.updated, skipped: r.skipped, errors: r.errors })
+
 async function run(dryRun) {
   if (!file.value) return
   busy.value = true
@@ -25,7 +28,7 @@ async function run(dryRun) {
   try {
     result.value = await api('v1/import', { method: 'POST', form })
     if (!dryRun) {
-      toast(t('settings.summary', result.value), 'success', 6000)
+      toast(t('settings.summary', counts(result.value)), 'success', 6000)
       invalidateShelves()
       loadCatalog({ force: true }).catch(() => {})
     }
@@ -55,7 +58,7 @@ const layoutText = (shelf) => shelf.columns.map((c) => `${c.label} (${c.rows})`)
     <label class="flex items-start gap-2 text-sm"><input v-model="options.create_shelves" type="checkbox" class="mt-1 accent-brand-600" />{{ t('settings.createShelves') }}</label>
     <div v-if="options.create_shelves" class="pl-6">
       <label class="label" for="shelf_name">{{ t('settings.shelfName') }}</label>
-      <input id="shelf_name" v-model="options.shelf_name" class="input" maxlength="100" placeholder="Bücherregal" />
+      <input id="shelf_name" v-model="options.shelf_name" class="input" maxlength="100" :placeholder="t('settings.shelfNamePlaceholder')" />
     </div>
     <label class="flex items-start gap-2 text-sm"><input v-model="options.overwrite_personal" type="checkbox" class="mt-1 accent-brand-600" />{{ t('settings.overwritePersonal') }}</label>
     <label class="flex items-start gap-2 text-sm"><input v-model="options.overwrite_location" type="checkbox" class="mt-1 accent-brand-600" />{{ t('settings.overwriteLocation') }}</label>
@@ -74,7 +77,7 @@ const layoutText = (shelf) => shelf.columns.map((c) => `${c.label} (${c.rows})`)
     <div v-if="result" class="space-y-2 rounded-xl bg-stone-100 p-3 text-sm dark:bg-stone-800" role="status">
       <p class="flex items-start gap-2 font-medium">
         <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-        {{ t(result.dry_run ? 'settings.summaryDry' : 'settings.summary', { created: result.created, linked: result.linked + result.updated, skipped: result.skipped, errors: result.errors }) }}
+        {{ t(result.dry_run ? 'settings.summaryDry' : 'settings.summary', counts(result)) }}
       </p>
       <p>{{ t('settings.placed', { n: result.placed }) }}</p>
       <p v-if="result.loans_taken_over">{{ t(result.dry_run ? 'settings.loansTakenOverDry' : 'settings.loansTakenOver', { n: result.loans_taken_over }) }}</p>

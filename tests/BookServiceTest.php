@@ -49,7 +49,7 @@ final class BookServiceTest extends TestCase
             $this->books->create(['title' => '', 'isbn' => '123', 'cover_url' => 'javascript:alert(1)', 'entry_type' => 'library_loan'], $user['id']);
             self::fail('invalid input accepted');
         } catch (ApiException $e) {
-            self::assertSame(['isbn', 'title', 'cover_url', 'loan_due'], array_keys($e->details['errors']));
+            self::assertSame(['isbn', 'title', 'cover_url'], array_keys($e->details['errors']));
         }
     }
 
@@ -86,6 +86,13 @@ final class BookServiceTest extends TestCase
         self::assertSame(['Heute gescannt', 'Neu erhalten', 'Mitte', 'Alt'], $titles);
     }
 
+    public function testLibraryLoanWithoutUserSettingIsDueAfterThreeWeeks(): void
+    {
+        $user = $this->createUser();
+        $loan = $this->books->create(['title' => 'Leihbuch', 'entry_type' => 'library_loan', 'loan_start' => '2026-10-01'], $user['id']);
+        self::assertSame('2026-10-22', $loan['loan_due'], 'no "due date required" any more');
+    }
+
     public function testLibraryLoanUsesDefaultLoanPeriod(): void
     {
         $user = $this->createUser();
@@ -115,12 +122,8 @@ final class BookServiceTest extends TestCase
         }
         $cleared = $auth->updateProfile($user['id'], ['library_name' => '', 'library_loan_days' => '']);
         self::assertSame([null, null], [$cleared['library_name'], $cleared['library_loan_days']]);
-        try {
-            $this->books->create(['title' => 'D', 'entry_type' => 'library_loan'], $user['id']);
-            self::fail('library loan without due date accepted');
-        } catch (ApiException $e) {
-            self::assertSame(['loan_due'], array_keys($e->details['errors']));
-        }
+        // Without a setting: the default loan period of 3 weeks.
+        self::assertSame('2026-10-30', $this->books->create(['title' => 'D', 'entry_type' => 'library_loan'], $user['id'])['loan_due']);
     }
 
     public function testPersonalDataIsIsolatedPerUser(): void

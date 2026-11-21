@@ -41,6 +41,7 @@ async function load() {
   error.value = ''
   try {
     const data = await api(`v1/books/${props.id}`)
+    if (unmounted) return // page left meanwhile: no polling, no dialogs
     book.value = data.book
     offlineCopy.value = !store.online
   } catch (e) {
@@ -52,6 +53,7 @@ async function load() {
       error.value = errorMessage(e)
     }
   }
+  if (unmounted) return
   if (book.value) resetPersonal()
   // Just bought from the wishlist: ask for its place right away.
   if (book.value && route.query.place && book.value.entry_type === 'owned' && !book.value.shelf_id) {
@@ -63,7 +65,11 @@ async function load() {
   if (book.value?.metadata_status === 'pending' && !dirty.value) pendingTimer = setTimeout(load, 4000)
 }
 let pendingTimer = null
-onUnmounted(() => clearTimeout(pendingTimer))
+let unmounted = false
+onUnmounted(() => {
+  unmounted = true
+  clearTimeout(pendingTimer)
+})
 
 function resetPersonal() {
   const p = book.value.personal ?? {}
@@ -97,15 +103,16 @@ async function persist(data, { quiet = false } = {}) {
   }
 }
 
-const setStatus = (status) => persist({ reading_status: status }, { quiet: true })
-const setRating = (rating) => persist({ rating }, { quiet: true })
-const saveDetails = () =>
-  persist({
-    pages_read: Number(personal.pages_read) || 0,
-    started_at: personal.started_at || null,
-    finished_at: personal.finished_at || null,
-    notes: personal.notes,
-  })
+const detailFields = () => ({
+  pages_read: Number(personal.pages_read) || 0,
+  started_at: personal.started_at || null,
+  finished_at: personal.finished_at || null,
+  notes: personal.notes,
+})
+// A status or star tap while notes/pages are being edited saves those too instead of discarding them.
+const setStatus = (status) => persist({ ...(dirty.value ? detailFields() : {}), reading_status: status }, { quiet: true })
+const setRating = (rating) => persist({ ...(dirty.value ? detailFields() : {}), rating }, { quiet: true })
+const saveDetails = () => persist(detailFields())
 
 // ---- wishlist
 async function addToWishlist() {
@@ -227,14 +234,17 @@ async function deleteRead(read) {
 
 const readPeriod = (read) => [read.started_at ? formatDate(read.started_at) : '…', formatDate(read.finished_at)].join(' – ')
 
+/** @returns {Promise<boolean>} saved – dialogs close only then and keep the input otherwise */
 async function updateBook(data, message = t('common.saved')) {
   try {
     const result = await api(`v1/books/${book.value.id}`, { method: 'PUT', body: data })
     book.value = result.book
     patchBook(result.book)
     toast(message, 'success')
+    return true
   } catch (e) {
     toast(errorMessage(e), 'error')
+    return false
   }
 }
 
@@ -264,7 +274,7 @@ async function saveMove() {
 
 async function lend() {
   if (!lendName.value.trim()) return
-  await updateBook({ lent_to: lendName.value.trim(), lent_at: todayIso() })
+  if (!(await updateBook({ lent_to: lendName.value.trim(), lent_at: todayIso() }))) return
   showLend.value = false
   lendName.value = ''
 }
@@ -277,8 +287,7 @@ function extendDefault() {
 }
 
 async function extend() {
-  await updateBook({ loan_due: extendDate.value })
-  showExtend.value = false
+  if (await updateBook({ loan_due: extendDate.value })) showExtend.value = false
 }
 
 async function remove() {
@@ -349,7 +358,7 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             <span class="rounded-full bg-brand-100 px-2 py-0.5 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300">{{ t(book.wishlist ? 'entry.wishlist' : `entry.${book.entry_type}`) }}</span>
             <span v-if="book.genre" class="rounded-full bg-stone-200 px-2 py-0.5 dark:bg-stone-800">{{ book.genre }}</span>
             <span v-if="book.status !== 'active'" class="rounded-full bg-stone-800 px-2 py-0.5 text-white">{{ t(book.status === 'returned' ? 'book.statusReturned' : 'book.statusDiscarded') }}</span>
-            <span v-if="offlineCopy" class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">Offline</span>
+            <span v-if="offlineCopy" class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{{ t('common.offlineBadge') }}</span>
           </div>
 
           <!-- Wished-only book: not part of the collection -->
@@ -372,7 +381,7 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
               <div class="text-xs text-stone-500">{{ t('book.location') }}</div>
               <div class="font-medium">{{ locationText(book.location) || t('book.noLocation') }}</div>
             </div>
-            <RouterLink v-if="book.shelf_id" :to="{ name: 'shelf', params: { id: book.shelf_id }, query: { col: book.shelf_col, row: book.shelf_row } }" class="btn-ghost !px-2 !py-1.5 text-sm">
+            <RouterLink v-if="book.shelf_id" :to="{ name: 'shelf', params: { id: book.shelf_id }, query: { col: book.shelf_col, row: book.shelf_row } }" class="btn-ghost !px-2 !py-1.5 text-sm" :aria-label="t('book.showOnShelf')" :title="t('book.showOnShelf')">
               <LibraryBig class="h-4 w-4" />
             </RouterLink>
             <button class="btn-secondary !py-1.5" @click="openMove">{{ book.shelf_id ? t('common.moveTo') : t('book.setLocation') }}</button>
@@ -396,8 +405,8 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
               <span v-if="book.loan_username"> · {{ t('book.borrower') }}: {{ book.loan_username }}</span>
             </div>
             <div v-if="book.status === 'active'" class="mt-3 flex flex-wrap gap-2">
-              <button class="btn-secondary !py-1.5" @click="(extendDate = extendDefault()), (showExtend = true)">{{ t('due.extend') }}</button>
-              <button class="btn-primary !py-1.5" @click="updateBook({ status: 'returned' }, t('due.returned'))"><Check class="h-4 w-4" />{{ t('due.markReturned') }}</button>
+              <button class="btn-secondary !py-1.5" :disabled="!store.online" @click="(extendDate = extendDefault()), (showExtend = true)">{{ t('due.extend') }}</button>
+              <button class="btn-primary !py-1.5" :disabled="!store.online" @click="updateBook({ status: 'returned' }, t('due.returned'))"><Check class="h-4 w-4" />{{ t('due.markReturned') }}</button>
             </div>
           </div>
 
@@ -416,9 +425,9 @@ const statuses = ['unread', 'reading', 'read', 'abandoned']
             <Users class="h-4 w-4 text-stone-500" />
             <template v-if="book.lent_to">
               <span class="flex-1 text-amber-800 dark:text-amber-300">{{ t('book.lentTo') }} <strong>{{ book.lent_to }}</strong><span v-if="book.lent_at"> · {{ formatDate(book.lent_at) }}</span></span>
-              <button class="btn-ghost !py-1 text-sm" @click="updateBook({ lent_to: null })">{{ t('book.gotBack') }}</button>
+              <button class="btn-ghost !py-1 text-sm" :disabled="!store.online" @click="updateBook({ lent_to: null })">{{ t('book.gotBack') }}</button>
             </template>
-            <button v-else class="btn-ghost !px-1 !py-1 text-sm" @click="showLend = true">{{ t('book.lend') }} …</button>
+            <button v-else class="btn-ghost !px-1 !py-1 text-sm" :disabled="!store.online" @click="showLend = true">{{ t('book.lend') }} …</button>
           </div>
         </div>
       </section>

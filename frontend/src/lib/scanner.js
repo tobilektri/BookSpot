@@ -53,6 +53,17 @@ export async function startScanner(video, onIsbn, { deviceId = rememberedCamera(
   if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('no camera'), { code: 'no_camera' })
 
   const stream = await openStream(deviceId)
+  try {
+    return await startEngine(video, stream, onIsbn, deviceId)
+  } catch (e) {
+    // The camera is already on: a failing detector or ZXing import must not leave it running.
+    stream.getTracks().forEach((t) => t.stop())
+    video.srcObject = null
+    throw e
+  }
+}
+
+async function startEngine(video, stream, onIsbn, deviceId) {
   video.srcObject = stream
   video.setAttribute('playsinline', 'true')
   video.muted = true

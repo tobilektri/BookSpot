@@ -159,6 +159,10 @@ final class CsvReader
         if (preg_match('/^="(.*)"$/s', $value, $m)) {
             $value = $m[1];
         }
+        // Undo the export's protection against spreadsheet formulas ("'- Tipp von Ben" -> "- Tipp von Ben").
+        if (preg_match('/^\'[=+\-@]/', $value)) {
+            $value = substr($value, 1);
+        }
         return trim($value);
     }
 }
