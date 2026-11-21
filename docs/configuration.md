@@ -86,6 +86,8 @@ See [metadata.md](metadata.md#rate-limits) for how they work.
 |---|---|---|
 | `CORS_ALLOWED_ORIGINS` | – | Other web front-ends that may call the API with the user's session (exact origins, comma separated). Empty = same origin only, which is what the app needs. Allowed origins can send authenticated requests, so only list trusted ones. |
 | `IMPORT_GENRE_BLOCKLIST` | – | Additional comma-separated “genres” the CSV import ignores (on top of the built-in list of Amazon categories). |
+| `UPDATE_CHECK` | `true` | Check GitHub Releases once a day (server-side, cached 24 h) for a newer BookSpot version and show a notice to admins. Set to `false` to disable completely. |
+| `UPDATE_CHECK_REPO` | `tobilektri/BookSpot` | Optional `owner/repo` override for the GitHub Releases update check (e.g. for forks). |
 
 ## PHP settings
 

@@ -10,11 +10,12 @@ use BookSpot\Config;
 use BookSpot\Cron;
 use BookSpot\PushService;
 use BookSpot\Request;
+use BookSpot\UpdateService;
 
 /** Admin-only system information. */
 final class AdminController extends Controller
 {
-    /** Cron token (+ whether it comes from .env), feature status */
+    /** Cron token (+ whether it comes from .env), feature status, cached update info */
     public function system(Request $request): array
     {
         $this->admin($request);
@@ -29,7 +30,16 @@ final class AdminController extends Controller
             'db_driver' => $db->driver(),
             'php_version' => PHP_VERSION,
             'version' => App::VERSION,
+            'update' => (new UpdateService($db))->status(),
         ];
+    }
+
+    /** Checks GitHub Releases for a newer BookSpot version (cached 24h unless force=true). */
+    public function checkUpdate(Request $request): array
+    {
+        $this->admin($request);
+        $force = filter_var($request->input('force', false), FILTER_VALIDATE_BOOLEAN);
+        return ['update' => (new UpdateService($this->db()))->check($force)];
     }
 
     /** New random token (only when CRON_TOKEN is not set in .env) */
@@ -45,6 +55,9 @@ final class AdminController extends Controller
         $this->admin($request);
         if ($request->method === 'POST' && $request->action() === 'regenerate_cron_token') {
             return $this->regenerateCronToken($request);
+        }
+        if ($request->method === 'POST' && $request->action() === 'check_update') {
+            return $this->checkUpdate($request);
         }
         if (!$request->isSafe()) {
             throw new ApiException('unknown_action', 404);

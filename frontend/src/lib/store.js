@@ -15,6 +15,7 @@ export const store = reactive({
   syncing: false,
   toasts: [],
   updateAvailable: false,
+  appUpdate: null, // {latest_version, url, published_at} for admins when a newer GitHub release exists
   showOnboarding: false, // restart the introduction from the settings
   pushOffer: null, // set to a reason (e.g. 'loan') to offer push notifications right away
 })

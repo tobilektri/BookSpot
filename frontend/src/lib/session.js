@@ -56,6 +56,7 @@ export function applyStatus(status) {
   store.pushAvailable = status.push_available
   store.appName = status.app_name
   store.version = status.version
+  store.appUpdate = status.app_update ?? null
   rememberUser(status.user)
 }
 

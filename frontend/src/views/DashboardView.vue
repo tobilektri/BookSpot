@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, ScanBarcode, Plus, Upload, CalendarClock, BookOpen, MapPin, Sparkles, Users, Library } from '@lucide/vue'
+import { Search, ScanBarcode, Plus, Upload, CalendarClock, BookOpen, MapPin, Sparkles, Users, Library, ArrowUpCircle, ExternalLink, X } from '@lucide/vue'
 import { store, toast } from '../lib/store.js'
 import { t, errorMessage } from '../lib/i18n.js'
 import { api } from '../lib/api.js'
@@ -13,10 +13,32 @@ import BookRow from '../components/BookRow.vue'
 import DueLabel from '../components/DueLabel.vue'
 import EnrichButton from '../components/EnrichButton.vue'
 
+const DISMISSED_UPDATE_KEY = 'bookspot.dismissedUpdate'
+
 const router = useRouter()
 const query = ref('')
 const loadError = ref('')
 const progressDraft = ref({})
+const dismissedUpdate = ref('')
+try {
+  dismissedUpdate.value = localStorage.getItem(DISMISSED_UPDATE_KEY) || ''
+} catch {
+  /* ignore */
+}
+
+const showUpdateBanner = computed(
+  () => store.user?.role === 'admin' && store.appUpdate?.latest_version && store.appUpdate.latest_version !== dismissedUpdate.value,
+)
+
+function dismissUpdate() {
+  const version = store.appUpdate?.latest_version || ''
+  dismissedUpdate.value = version
+  try {
+    localStorage.setItem(DISMISSED_UPDATE_KEY, version)
+  } catch {
+    /* ignore */
+  }
+}
 
 onMounted(async () => {
   try {
@@ -66,6 +88,31 @@ async function saveProgress(book) {
 
 <template>
   <div class="space-y-6">
+    <section
+      v-if="showUpdateBanner"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+    >
+      <div class="flex items-center gap-2">
+        <ArrowUpCircle class="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <span>{{ t('updates.banner', { v: store.appUpdate.latest_version }) }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a
+          v-if="store.appUpdate.url"
+          :href="store.appUpdate.url"
+          target="_blank"
+          rel="noopener"
+          class="btn-primary !py-1 text-xs"
+        >
+          {{ t('updates.openRelease') }}
+          <ExternalLink class="h-3.5 w-3.5" />
+        </a>
+        <button type="button" class="btn-ghost !p-1" :aria-label="t('common.close')" @click="dismissUpdate">
+          <X class="h-4 w-4" />
+        </button>
+      </div>
+    </section>
+
     <section>
       <h1 class="font-serif text-2xl font-semibold">{{ t('dashboard.hello', { name: store.user?.username }) }}</h1>
       <form class="relative mt-3" @submit.prevent="search">

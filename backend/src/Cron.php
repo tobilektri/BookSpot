@@ -30,6 +30,9 @@ final class Cron
         $covers->maxWait = 5.0;
         $covers->retryWhenSourcesChanged();
         $result['covers'] = $covers->prefetchBatch(Config::int('CRON_COVER_BATCH', 40), 60.0);
+        if (UpdateService::enabled()) {
+            $result['update'] = (new UpdateService($db))->check();
+        }
         $db->run('DELETE FROM login_attempts WHERE attempted_at < ?', [App::now()->modify('-1 day')->format('Y-m-d H:i:s')]);
         $db->run('DELETE FROM notification_log WHERE due_date < ?', [App::now()->modify('-90 days')->format('Y-m-d')]);
         RateLimiter::cleanup();
