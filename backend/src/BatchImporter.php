@@ -194,15 +194,11 @@ final class BatchImporter
     public function status(array $bookIds, int $userId): array
     {
         $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', $bookIds)))), 0, 200);
-        $books = [];
-        foreach ($ids as $id) {
-            try {
-                $books[] = $this->compact($id, $userId);
-            } catch (ApiException) {
-                // deleted in the meantime
-            }
-        }
-        return $books;
+        // One batch of queries for all of them (polled every few seconds while scanning); deleted ones are left out.
+        return array_values(array_map(function (array $book) {
+            unset($book['description']);
+            return $book;
+        }, $this->books->getMany($ids, $userId)));
     }
 
     /** Entries still waiting (including retries later on). */

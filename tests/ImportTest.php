@@ -206,6 +206,26 @@ final class ImportTest extends TestCase
         self::assertSame(0, (int) $this->db->value('SELECT COUNT(*) FROM wishes'));
     }
 
+    public function testExportAndImportKeepTextStartingWithADash(): void
+    {
+        $user = $this->createUser();
+        $books = new BookService($this->db, new ShelfService($this->db));
+        $book = $books->create(['title' => '-Minus-', 'isbn' => '9783548283951'], $user['id']);
+        (new \BookSpot\UserBookService($this->db))->upsert($user['id'], $book['id'], ['notes' => '- Tipp von Ben']);
+
+        $out = fopen('php://memory', 'w+');
+        (new \BookSpot\ExportService($this->db))->writeCsv($user['id'], $out);
+        rewind($out);
+        $csv = (string) stream_get_contents($out);
+        self::assertStringContainsString("'- Tipp von Ben", $csv, 'protected against spreadsheet formulas');
+
+        $this->db->run('DELETE FROM user_books');
+        $this->db->run('DELETE FROM books');
+        (new BookImporter($this->db, $user['id']))->import((new CsvReader())->parseString($csv));
+        self::assertSame('-Minus-', $this->db->value('SELECT title FROM books'));
+        self::assertSame('- Tipp von Ben', $this->db->value('SELECT notes FROM user_books'));
+    }
+
     /** @param list<array{0: string, 1: string, 2: string, 3: string}> $books title, ISBN, "Erhalten als", "Erhalten am" */
     private function importCsv(int $userId, array $books, array $options = []): array
     {

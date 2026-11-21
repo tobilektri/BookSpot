@@ -1,6 +1,7 @@
 <script setup>
 import { X } from '@lucide/vue'
 import { store, dismissToast } from '../lib/store.js'
+import { t } from '../lib/i18n.js'
 </script>
 
 <template>
@@ -18,7 +19,7 @@ import { store, dismissToast } from '../lib/store.js'
         role="status"
       >
         <span class="flex-1">{{ toast.message }}</span>
-        <button class="opacity-80 hover:opacity-100" aria-label="Close" @click="dismissToast(toast.id)"><X class="h-4 w-4" /></button>
+        <button class="opacity-80 hover:opacity-100" :aria-label="t('common.close')" @click="dismissToast(toast.id)"><X class="h-4 w-4" /></button>
       </div>
     </TransitionGroup>
   </div>

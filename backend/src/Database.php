@@ -58,9 +58,13 @@ final class Database
         return (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
     }
 
+    /** Number of statements run (tests check that lists don't load book by book). */
+    public int $queries = 0;
+
     /** @param array<int|string, mixed> $params */
     public function run(string $sql, array $params = []): PDOStatement
     {
+        $this->queries++;
         $stmt = $this->pdo->prepare($sql);
         foreach ($params as $key => $value) {
             $name = is_int($key) ? $key + 1 : (str_starts_with($key, ':') ? $key : ':' . $key);

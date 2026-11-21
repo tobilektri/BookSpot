@@ -28,6 +28,9 @@
     "config": {
         "sort-packages": true,
         "optimize-autoloader": true,
+        "platform": {
+            "php": "8.4.1"
+        },
         "allow-plugins": {
             "php-http/discovery": false
         }

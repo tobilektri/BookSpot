@@ -76,7 +76,9 @@ final class Kernel
 
             // Wishlists shared by link: no sign-in, only bibliographic data.
             $r->get('/public/wishlists/{token}', [WishlistController::class, 'public'])->middleware(new RateLimit('public_wishlist', 60, 60, perIp: true));
-            $r->get('/public/wishlists/{token}/covers/{id:\d+}', [WishlistController::class, 'publicCover'])->withoutThrottle();
+            // Anonymous and able to trigger cover downloads: its own limit instead of the global one.
+            $r->get('/public/wishlists/{token}/covers/{id:\d+}', [WishlistController::class, 'publicCover'])->withoutThrottle()
+                ->middleware(new RateLimit('public_cover', 300, 60, perIp: true));
 
             // Cover images: many parallel requests, no session lock, not counted towards the request limit.
             $r->get('/books/{id:\d+}/cover', [CoverController::class, 'show'])->middleware(new Authenticate(readOnlySession: true))->withoutThrottle();

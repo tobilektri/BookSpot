@@ -2,12 +2,12 @@ import { ref, computed } from 'vue'
 
 const de = {
   app: { name: 'SchmökerSpot', tagline: 'Deine Bücher. Deine Regale. Deine Statistik.' },
-  nav: { home: 'Start', books: 'Bücher', scan: 'Scannen', shelves: 'Regale', stats: 'Statistik', settings: 'Einstellungen' },
+  nav: { home: 'Start', books: 'Bücher', scan: 'Scannen', shelves: 'Regale', stats: 'Statistik', settings: 'Einstellungen', label: 'Hauptnavigation' },
   common: {
     save: 'Speichern', cancel: 'Abbrechen', delete: 'Löschen', edit: 'Bearbeiten', back: 'Zurück', close: 'Schließen',
     add: 'Hinzufügen', search: 'Suchen', loading: 'Lädt …', none: 'Keine', yes: 'Ja', no: 'Nein', more: 'Mehr anzeigen',
     all: 'Alle', retry: 'Erneut versuchen', optional: 'optional', books: '{n} Bücher', book: '1 Buch', pages: '{n} Seiten',
-    offline: 'Offline – Änderungen werden später synchronisiert', pending: '{n} Änderung(en) warten auf Sync',
+    offlineBadge: 'Offline', offline: 'Offline – Änderungen werden später synchronisiert', pending: '{n} Änderung(en) warten auf Sync',
     syncing: 'Synchronisiere …', confirmDelete: 'Wirklich löschen?', saved: 'Gespeichert', unknownAuthor: 'Unbekannter Autor',
     today: 'heute', update: 'Neue Version verfügbar', reload: 'Neu laden', select: 'Bitte wählen', moveTo: 'Verschieben nach …',
   },
@@ -34,7 +34,7 @@ const de = {
     title: 'Bücher', count: '{n} Bücher', empty: 'Keine Bücher gefunden.', sort: 'Sortierung', genre: 'Genre', allGenres: 'Alle Genres',
     sortTitle: 'Titel', sortAuthors: 'Autor', sortRecent: 'Neueste', sortPages: 'Seitenzahl', sortYear: 'Erscheinungsjahr', sortDue: 'Fälligkeit',
     filterUnplaced: 'Ohne Standort', filterLent: 'Verliehen', filterNoCover: 'Ohne Cover', filterLibrary: 'Ausleihen', offlineList: 'Offline-Kopie vom {date}',
-    selectMode: 'Auswählen', selected: '{n} ausgewählt', moveSelected: 'Auswahl verschieben',
+    selectBook: '„{title}“ auswählen', selectMode: 'Auswählen', selected: '{n} ausgewählt', moveSelected: 'Auswahl verschieben',
   },
   status: { unread: 'Ungelesen', reading: 'Am Lesen', read: 'Gelesen', abandoned: 'Abgebrochen' },
   entry: {
@@ -73,6 +73,7 @@ const de = {
     coverAdd: 'Cover fotografieren', coverReplace: 'Cover ändern', coverRemove: 'Eigenes Cover entfernen', coverSaved: 'Cover gespeichert.', coverRemoveConfirm: 'Eigenes Cover entfernen? Danach werden wieder die Buchdaten-Quellen gefragt.', coverHint: 'Foto aufnehmen oder Bild auswählen – wird auf deinem Server gespeichert.',
     earlierReads: 'Frühere Lesedurchgänge', readTimes: '{n}× gelesen', readAgain: 'Erneut lesen', readAgainStarted: 'Neuer Lesedurchgang gestartet – der vorige bleibt in der Statistik.',
     addRead: 'Durchgang eintragen', addReadTitle: 'Früheren Lesedurchgang eintragen', addReadHint: 'Für ein Buch, das du schon einmal gelesen hast – zählt in der Statistik im Monat des Enddatums.', deleteReadConfirm: 'Diesen Lesedurchgang löschen?',
+    showOnShelf: 'Im Regal zeigen', libraryPlaceholder: 'Stadtbibliothek', formatOptions: 'Taschenbuch,Hardcover,E-Book,Hörbuch',
     otherReaders: 'Andere Leser', details: 'Details', addedBy: 'Hinzugefügt von {name}', initialStatus: 'Lesestatus',
     deleteConfirm: '„{title}“ wirklich aus dem gemeinsamen Katalog löschen? Die Lesedaten aller Nutzer gehen verloren.',
     progress: '{read} von {total} Seiten', markRead: 'Fertig gelesen', startReading: 'Lesen beginnen', catalog: 'Katalog',
@@ -131,7 +132,7 @@ const de = {
     libraryName: 'Name der Bibliothek', loanDays: 'Standard-Leihfrist', days: 'Tage',
     importTitle: 'CSV-Import (Bookstats)', importHint: 'Exportiere deine Sammlung in Bookstats als CSV und lade sie hier hoch. Goodreads- und andere CSV-Dateien mit Spalten wie Titel, Autor, ISBN funktionieren ebenfalls.',
     file: 'CSV-Datei', dryRun: 'Nur prüfen (Probelauf, nichts wird gespeichert)', createShelves: 'Unbekannte Standorte (z. B. L2, M4) als neues Regal anlegen',
-    shelfName: 'Name des neuen Regals', overwritePersonal: 'Vorhandene Lesedaten mit CSV-Werten überschreiben', overwriteLocation: 'Standort vorhandener Bücher aus CSV übernehmen',
+    shelfNamePlaceholder: 'Bücherregal', shelfName: 'Name des neuen Regals', overwritePersonal: 'Vorhandene Lesedaten mit CSV-Werten überschreiben', overwriteLocation: 'Standort vorhandener Bücher aus CSV übernehmen',
     takeOverLoans: 'Ausleihen aus der CSV übernehmen', takeOverLoansHint: 'Bücher, die früher als „Eigenes Buch“ importiert wurden und in der CSV als „Leihe“ stehen, werden zu Bibliotheks-Ausleihen: ausgeliehen am „Erhalten am“, Rückgabe nach der Standard-Ausleihzeit (sonst 21 Tage), abgelaufene als „Zurückgegeben“. Bücher mit Regalplatz bleiben eigene Bücher.',
     loansTakenOver: '{n} Bücher wurden zu Bibliotheks-Ausleihen.', loansTakenOverDry: '{n} Bücher würden zu Bibliotheks-Ausleihen.',
     startImport: 'Import starten', analyse: 'Datei prüfen', importing: 'Importiere …',
@@ -340,11 +341,11 @@ const de = {
 
 const en = {
   app: { name: 'BookSpot', tagline: 'Your books. Your shelves. Your stats.' },
-  nav: { home: 'Home', books: 'Books', scan: 'Scan', shelves: 'Shelves', stats: 'Stats', settings: 'Settings' },
+  nav: { home: 'Home', books: 'Books', scan: 'Scan', shelves: 'Shelves', stats: 'Stats', settings: 'Settings', label: 'Main navigation' },
   common: {
     save: 'Save', cancel: 'Cancel', delete: 'Delete', edit: 'Edit', back: 'Back', close: 'Close', add: 'Add', search: 'Search',
     loading: 'Loading …', none: 'None', yes: 'Yes', no: 'No', more: 'Show more', all: 'All', retry: 'Retry', optional: 'optional',
-    books: '{n} books', book: '1 book', pages: '{n} pages', offline: 'Offline – changes will sync later', pending: '{n} change(s) waiting to sync',
+    books: '{n} books', book: '1 book', pages: '{n} pages', offlineBadge: 'Offline', offline: 'Offline – changes will sync later', pending: '{n} change(s) waiting to sync',
     syncing: 'Syncing …', confirmDelete: 'Really delete?', saved: 'Saved', unknownAuthor: 'Unknown author', today: 'today',
     update: 'New version available', reload: 'Reload', select: 'Please choose', moveTo: 'Move to …',
   },
@@ -370,7 +371,7 @@ const en = {
     title: 'Books', count: '{n} books', empty: 'No books found.', sort: 'Sort', genre: 'Genre', allGenres: 'All genres',
     sortTitle: 'Title', sortAuthors: 'Author', sortRecent: 'Newest', sortPages: 'Pages', sortYear: 'Year', sortDue: 'Due date',
     filterUnplaced: 'No location', filterLent: 'Lent out', filterNoCover: 'No cover', filterLibrary: 'Loans', offlineList: 'Offline copy from {date}',
-    selectMode: 'Select', selected: '{n} selected', moveSelected: 'Move selection',
+    selectBook: 'Select “{title}”', selectMode: 'Select', selected: '{n} selected', moveSelected: 'Move selection',
   },
   status: { unread: 'Unread', reading: 'Reading', read: 'Read', abandoned: 'Abandoned' },
   entry: {
@@ -409,6 +410,7 @@ const en = {
     coverAdd: 'Photograph cover', coverReplace: 'Change cover', coverRemove: 'Remove own cover', coverSaved: 'Cover saved.', coverRemoveConfirm: 'Remove your own cover? The book data sources are asked again afterwards.', coverHint: 'Take a photo or choose an image – stored on your server.',
     earlierReads: 'Earlier reads', readTimes: 'Read {n}×', readAgain: 'Read again', readAgainStarted: 'New read started – the previous one stays in your statistics.',
     addRead: 'Add a read', addReadTitle: 'Add an earlier read', addReadHint: 'For a book you have read before – counts in the statistics in the month it ended.', deleteReadConfirm: 'Delete this read?',
+    showOnShelf: 'Show on the shelf', libraryPlaceholder: 'City library', formatOptions: 'Paperback,Hardcover,E-book,Audiobook',
     otherReaders: 'Other readers', details: 'Details', addedBy: 'Added by {name}', initialStatus: 'Reading status',
     deleteConfirm: 'Really delete “{title}” from the shared catalogue? Reading data of all users will be lost.',
     progress: '{read} of {total} pages', markRead: 'Finished', startReading: 'Start reading', catalog: 'Catalogue',
@@ -467,7 +469,7 @@ const en = {
     libraryName: 'Library name', loanDays: 'Default loan period', days: 'days',
     importTitle: 'CSV import (Bookstats)', importHint: 'Export your collection from Bookstats as CSV and upload it here. Goodreads and other CSV files with columns like title, author, ISBN work too.',
     file: 'CSV file', dryRun: 'Check only (dry run, nothing is saved)', createShelves: 'Create a new shelf for unknown locations (e.g. L2, M4)',
-    shelfName: 'Name of the new shelf', overwritePersonal: 'Overwrite existing reading data with CSV values', overwriteLocation: 'Move existing books to the CSV location',
+    shelfNamePlaceholder: 'Bookcase', shelfName: 'Name of the new shelf', overwritePersonal: 'Overwrite existing reading data with CSV values', overwriteLocation: 'Move existing books to the CSV location',
     takeOverLoans: 'Take over loans from the CSV', takeOverLoansHint: 'Books imported earlier as “own book” that the CSV lists as “Leihe” become library loans: borrowed on the received date, due after the default loan period (otherwise 21 days), past ones as “returned”. Books with a shelf place stay own books.',
     loansTakenOver: '{n} books became library loans.', loansTakenOverDry: '{n} books would become library loans.',
     startImport: 'Start import', analyse: 'Check file', importing: 'Importing …',

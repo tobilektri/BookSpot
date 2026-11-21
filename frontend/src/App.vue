@@ -77,7 +77,7 @@ function applyUpdate() {
           <img :src="logoUrl" alt="" class="h-7 w-7" />
           <span>{{ store.appName || appName }}</span>
         </RouterLink>
-        <nav class="ml-6 hidden items-center gap-1 md:flex" aria-label="Main">
+        <nav class="ml-6 hidden items-center gap-1 md:flex" :aria-label="t('nav.label')">
           <RouterLink
             v-for="item in nav"
             :key="item.to"
@@ -111,7 +111,7 @@ function applyUpdate() {
     <nav
       v-if="showChrome"
       class="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 backdrop-blur md:hidden dark:border-stone-800 dark:bg-stone-900/95"
-      aria-label="Main"
+      :aria-label="t('nav.label')"
     >
       <div class="mx-auto grid max-w-md grid-cols-5">
         <RouterLink

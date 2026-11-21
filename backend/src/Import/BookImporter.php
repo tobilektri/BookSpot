@@ -54,9 +54,6 @@ final class BookImporter
     /** @var array{library_name: ?string, library_loan_days: ?int}|null library defaults of the importing user */
     private ?array $libraryDefaults = null;
 
-    /** Loan period for library loans when the user has not set one (Onleihe and many libraries: 3 weeks). */
-    public const DEFAULT_LOAN_DAYS = 21;
-
     /**
      * @param array{dry_run?: bool, overwrite_personal?: bool, overwrite_location?: bool, take_over_loans?: bool, create_shelves?: bool, shelf_name?: string, import_personal?: bool} $options
      */
@@ -292,8 +289,7 @@ final class BookImporter
     private function libraryLoan(?string $start): array
     {
         $this->libraryDefaults ??= $this->db->one('SELECT library_name, library_loan_days FROM users WHERE id = ?', [$this->userId]) ?? [];
-        $days = (int) ($this->libraryDefaults['library_loan_days'] ?? 0) ?: self::DEFAULT_LOAN_DAYS;
-        $due = $start === null ? null : BookService::addDays($start, $days);
+        $due = $start === null ? null : BookService::addDays($start, BookService::loanDays($this->libraryDefaults));
         return [
             'loan_from' => $this->libraryDefaults['library_name'] ?? null,
             'loan_start' => $start,

@@ -262,8 +262,14 @@ final class CoverService
             $reset = $this->db->run("UPDATE books SET cover_status = NULL, cover_checked_at = NULL WHERE cover_status = 'none' AND cover_file IS NULL")->rowCount();
         }
         if (!is_string($stored) || $stored !== implode(',', $current)) {
-            $this->db->run("DELETE FROM settings WHERE name = 'cover_sources'");
-            $this->db->insert('settings', ['name' => 'cover_sources', 'value' => implode(',', $current)]);
+            try {
+                $this->db->transaction(function () use ($current) {
+                    $this->db->run("DELETE FROM settings WHERE name = 'cover_sources'");
+                    $this->db->insert('settings', ['name' => 'cover_sources', 'value' => implode(',', $current)]);
+                });
+            } catch (\PDOException) {
+                // Another run wrote the same setting at the same moment – nothing to do.
+            }
         }
         return $reset;
     }

@@ -159,9 +159,9 @@ async function moveSelection() {
       <div class="flex gap-2">
         <button class="btn-ghost" @click="selecting ? stopSelecting() : (selecting = true)">
           <component :is="selecting ? X : CheckSquare" class="h-4 w-4" />
-          <span class="hidden sm:inline">{{ selecting ? t('common.cancel') : t('books.selectMode') }}</span>
+          <span class="sr-only sm:not-sr-only">{{ selecting ? t('common.cancel') : t('books.selectMode') }}</span>
         </button>
-        <RouterLink to="/books/new" class="btn-primary"><Plus class="h-4 w-4" /><span class="hidden sm:inline">{{ t('common.add') }}</span></RouterLink>
+        <RouterLink to="/books/new" class="btn-primary"><Plus class="h-4 w-4" /><span class="sr-only sm:not-sr-only">{{ t('common.add') }}</span></RouterLink>
       </div>
     </div>
 
@@ -204,7 +204,7 @@ async function moveSelection() {
 
     <ul class="grid grid-cols-1 gap-1 md:grid-cols-2">
       <li v-for="book in filtered.slice(0, visible)" :key="book.id" class="flex items-center" @click.capture="selecting && onSelectClick($event, book.id)">
-        <button v-if="selecting" class="p-2 text-brand-700" :aria-pressed="selected.has(book.id)">
+        <button v-if="selecting" class="p-2 text-brand-700" :aria-pressed="selected.has(book.id)" :aria-label="t('books.selectBook', { title: book.title })">
           <component :is="selected.has(book.id) ? CheckSquare : Square" class="h-5 w-5" />
         </button>
         <BookRow :book="book" class="min-w-0 flex-1" />

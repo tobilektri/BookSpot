@@ -25,6 +25,8 @@ final class CronController extends Controller
             throw new ApiException('forbidden', 403);
         }
         @set_time_limit(120);
+        // Cron services often hang up after 30 s – the run continues and finishes its work.
+        @ignore_user_abort(true);
         return Cron::run();
     }
 }

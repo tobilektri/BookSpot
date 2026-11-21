@@ -233,6 +233,29 @@ final class WishlistTest extends TestCase
         self::assertNotNull($this->db->value('SELECT id FROM books WHERE id = ?', [$shared['id']]), 'Anna still wishes for it');
     }
 
+    public function testListsLoadInAFixedNumberOfQueries(): void
+    {
+        $count = function (int $books): int {
+            $this->db->run('DELETE FROM wishes');
+            $this->db->run('DELETE FROM books');
+            for ($i = 0; $i < $books; $i++) {
+                $this->books->create(['title' => "Wunsch $i", 'wishlist' => true], $this->anna['id']);
+            }
+            $this->wishes->share($this->anna['id'], 'instance');
+            $before = $this->db->queries;
+            $lists = $this->wishes->shared($this->ben['id']);
+            self::assertCount($books, $lists[0]['items']);
+            return $this->db->queries - $before;
+        };
+        self::assertSame($count(3), $count(20), 'no query per book');
+
+        // Same data as get() (minus the other readers).
+        $first = $this->wishes->mine($this->anna['id'])['items'][0];
+        $single = $this->books->get($first['id'], $this->anna['id']);
+        unset($single['readers']);
+        self::assertSame($single, $first);
+    }
+
     public function testExportAndImportKeepTheWishlist(): void
     {
         $this->wish('Wunsch', '9783548283951');

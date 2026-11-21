@@ -62,7 +62,7 @@ final class WishlistController extends Controller
     public function share(Request $request): array
     {
         $user = $this->user($request);
-        return ['sharing' => $this->service()->share($user['id'], (string) $request->input('visibility', ''), (bool) $request->input('renew', false))];
+        return ['sharing' => $this->service()->share($user['id'], (string) $request->input('visibility', ''), filter_var($request->input('renew', false), FILTER_VALIDATE_BOOL))];
     }
 
     /** Public list behind a share link – no sign-in */

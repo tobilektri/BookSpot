@@ -138,7 +138,7 @@ final class WishlistService
             $input += [
                 'loan_from' => $defaults['library_name'] ?? null,
                 'loan_start' => $today,
-                'loan_due' => BookService::addDays($today, (int) ($defaults['library_loan_days'] ?? 0) ?: 21),
+                'loan_due' => BookService::addDays($today, BookService::loanDays($defaults)),
                 'loan_user_id' => $userId,
             ];
         }
@@ -184,13 +184,7 @@ final class WishlistService
             $this->db->all('SELECT book_id FROM wishes WHERE user_id = ? ORDER BY created_at DESC, id DESC', [$ownerId]),
             'book_id'
         ));
-        $items = [];
-        foreach ($ids as $id) {
-            $book = $this->books->get($id, $viewerId);
-            unset($book['readers']);
-            $items[] = $book;
-        }
-        return $items;
+        return array_values($this->books->getMany($ids, $viewerId));
     }
 
     /** @return array{id: int|string, username: string}|null */

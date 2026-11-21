@@ -102,6 +102,10 @@ Verwaltung) oder bei einem externen Dienst wie cron-job.org. **Alle 10–15 Minu
 Takt; stündlich geht auch. Der Token wird automatisch erzeugt – wer einen festen möchte, setzt
 `CRON_TOKEN` in der `.env`. Adressen älterer Versionen (`api/cron.php?token=…`) funktionieren weiter.
 
+Ein Lauf arbeitet höchstens `CRON_MAX_SECONDS` (100 s) und läuft weiter, auch wenn der Cron-Dienst
+früher aufhört zu warten (cron-job.org bricht nach 30 s ab – das ist in Ordnung). Erinnerungen und
+Aufräumen kommen zuerst; läuft der vorige Lauf noch, wird der neue übersprungen.
+
 ## 8. Push-Benachrichtigungen (optional)
 
 Nichts zu tun: Die VAPID-Schlüssel für Web Push werden beim ersten Gebrauch erzeugt und in der
@@ -114,6 +118,9 @@ muss die App dafür zuerst zum Home-Bildschirm hinzugefügt werden.
 2. Neues Paket hochladen, dabei `.env` und `var/` **nicht** überschreiben.
 3. Seite aufrufen – Datenbank-Migrationen laufen automatisch.
 4. In der installierten App im Update-Hinweis auf **„Neu laden“** tippen (dann wechselt der Service Worker zur neuen Version).
+
+Dateien, die es in der neuen Version nicht mehr gibt, dürfen liegen bleiben; verlangt ein Release-Hinweis
+das Löschen (z. B. des alten Ordners `public/icons/`), bitte entfernen.
 
 ## Sicherung
 

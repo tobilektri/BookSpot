@@ -16,6 +16,20 @@ export const loading = ref(false)
 let pending = null
 let stale = true
 
+/** The server sends at most 5000 books per request: larger collections come in pages. */
+const PAGE_SIZE = 5000
+
+async function fetchAllBooks() {
+  const first = await api('v1/books', { query: { limit: PAGE_SIZE, offset: 0, compact: 1, sort: 'title' } })
+  const items = [...first.items]
+  while (items.length < first.total && first.items.length) {
+    const next = await api('v1/books', { query: { limit: PAGE_SIZE, offset: items.length, compact: 1, sort: 'title' } })
+    if (!next.items.length) break
+    items.push(...next.items)
+  }
+  return { items, total: first.total }
+}
+
 /** Forget the catalogue in memory (logout / other account). */
 export function resetCatalog() {
   books.value = []
@@ -43,7 +57,7 @@ export function loadCatalog({ force = false } = {}) {
       }
     }
     try {
-      const data = await api('v1/books', { query: { limit: 10000, compact: 1, sort: 'title' } })
+      const data = await fetchAllBooks()
       if (!store.online && books.value.length) {
         // Served by the service worker's cache: older than the IndexedDB copy, which
         // already contains the changes made offline – keep that one.

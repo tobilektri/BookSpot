@@ -11,6 +11,8 @@ namespace BookSpot;
 final class BookService
 {
     public const ENTRY_TYPES = ['owned', 'library_loan', 'personal_loan'];
+    /** Loan period when the user set none (Settings → My library): 3 weeks, as with the Onleihe. */
+    public const DEFAULT_LOAN_DAYS = 21;
     public const STATUSES = ['active', 'returned', 'discarded'];
 
     private const TEXT_FIELDS = [
@@ -44,23 +46,7 @@ final class BookService
     /** @return array<string, mixed> */
     public function get(int $id, int $userId): array
     {
-        $row = $this->db->one(
-            'SELECT b.*, ub.reading_status, ub.rating, ub.pages_read, ub.started_at, ub.finished_at, ub.notes,
-                    ub.updated_at AS personal_updated_at, u.username AS loan_username, c.username AS created_by_name
-             FROM books b
-             LEFT JOIN user_books ub ON ub.book_id = b.id AND ub.user_id = ?
-             LEFT JOIN users u ON u.id = b.loan_user_id
-             LEFT JOIN users c ON c.id = b.created_by
-             WHERE b.id = ?',
-            [$userId, $id]
-        ) ?? throw ApiException::notFound('book_not_found');
-        if (!$this->visible($row, $userId)) {
-            throw ApiException::notFound('book_not_found');
-        }
-
-        $book = $this->present($row);
-        $book['wished'] = $this->db->value('SELECT id FROM wishes WHERE user_id = ? AND book_id = ?', [$userId, $id]) !== null;
-        $book['personal']['reads'] = (new ReadHistoryService($this->db))->forUser($userId, $id)[$id] ?? [];
+        $book = $this->getMany([$id], $userId)[$id] ?? throw ApiException::notFound('book_not_found');
         // Other readers of the shared copy (only status, no private notes).
         $book['readers'] = array_map(fn ($r) => [
             'username' => $r['username'],
@@ -72,6 +58,61 @@ final class BookService
             [$id, $userId]
         ));
         return $book;
+    }
+
+    /**
+     * Several books as get() returns them (without other readers), in a fixed number
+     * of queries – for wishlists and bulk-scan polling, which used to load book by book.
+     * Books the user may not see (somebody else's private wish) or that don't exist are left out.
+     *
+     * @param list<int> $ids
+     * @return array<int, array<string, mixed>> by id, in the order of $ids
+     */
+    public function getMany(array $ids, int $userId): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn (int $id) => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $rows = [];
+        foreach ($this->db->all(
+            "SELECT b.*, ub.reading_status, ub.rating, ub.pages_read, ub.started_at, ub.finished_at, ub.notes,
+                    ub.updated_at AS personal_updated_at, u.username AS loan_username, c.username AS created_by_name
+             FROM books b
+             LEFT JOIN user_books ub ON ub.book_id = b.id AND ub.user_id = ?
+             LEFT JOIN users u ON u.id = b.loan_user_id
+             LEFT JOIN users c ON c.id = b.created_by
+             WHERE b.id IN ($in)",
+            [$userId, ...$ids]
+        ) as $row) {
+            $rows[(int) $row['id']] = $row;
+        }
+        $wishIds = array_keys(array_filter($rows, fn ($row) => !empty($row['wishlist'])));
+        $visibleWishes = $wishIds === [] ? [] : array_flip(array_map('intval', array_column($this->db->all(
+            "SELECT DISTINCT w.book_id FROM wishes w JOIN users u ON u.id = w.user_id
+             WHERE w.book_id IN (" . implode(',', array_fill(0, count($wishIds), '?')) . ")
+               AND (w.user_id = ? OR u.wishlist_visibility IN ('instance', 'public'))",
+            [...$wishIds, $userId]
+        ), 'book_id')));
+        $wished = array_flip(array_map('intval', array_column(
+            $this->db->all("SELECT book_id FROM wishes WHERE user_id = ? AND book_id IN ($in)", [$userId, ...$ids]),
+            'book_id'
+        )));
+        $reads = (new ReadHistoryService($this->db))->forUser($userId, $ids);
+
+        $books = [];
+        foreach ($ids as $id) {
+            $row = $rows[$id] ?? null;
+            if ($row === null || (!empty($row['wishlist']) && !isset($visibleWishes[$id]))) {
+                continue;
+            }
+            $book = $this->present($row);
+            $book['wished'] = isset($wished[$id]);
+            $book['personal']['reads'] = $reads[$id] ?? [];
+            $books[$id] = $book;
+        }
+        return $books;
     }
 
     /**
@@ -478,9 +519,9 @@ final class BookService
                 $data['loan_from'] = $defaults['library_name'];
             }
             $due = array_key_exists('loan_due', $data) ? $data['loan_due'] : ($existing['loan_due'] ?? null);
-            if ($due === null && !isset($errors['loan_due']) && !isset($errors['loan_start']) && !empty($defaults['library_loan_days'])) {
+            if ($due === null && !isset($errors['loan_due']) && !isset($errors['loan_start'])) {
                 $start = $data['loan_start'] ?? $existing['loan_start'] ?? App::today();
-                $due = $data['loan_due'] = self::addDays((string) $start, (int) $defaults['library_loan_days']);
+                $due = $data['loan_due'] = self::addDays((string) $start, self::loanDays($defaults));
             }
             if ($due === null) {
                 $errors['loan_due'] = 'required';
@@ -604,6 +645,12 @@ final class BookService
     }
 
     /** Y-m-d plus a number of days (loan period). */
+    /** @param array{library_loan_days?: int|string|null} $defaults user row */
+    public static function loanDays(array $defaults): int
+    {
+        return (int) ($defaults['library_loan_days'] ?? 0) ?: self::DEFAULT_LOAN_DAYS;
+    }
+
     public static function addDays(string $date, int $days): string
     {
         return (new \DateTimeImmutable($date))->modify(sprintf('%+d days', $days))->format('Y-m-d');
