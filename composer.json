@@ -8,7 +8,7 @@
         "ext-json": "*",
         "ext-mbstring": "*",
         "ext-pdo": "*",
-        "guzzlehttp/guzzle": "^7.9",
+        "guzzlehttp/guzzle": "^8.5",
         "minishlink/web-push": "^11.0"
     },
     "require-dev": {
