@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@lucide/vue": "^1.75.0",
+    "@lucide/vue": "^1.77.0",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
     "chart.js": "^4.6.1",
