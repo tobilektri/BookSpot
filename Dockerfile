@@ -15,7 +15,7 @@ WORKDIR /build
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader --ignore-platform-reqs
 
-FROM php:8.5-fpm-alpine AS app
+FROM php:8.6-fpm-alpine AS app
 RUN apk add --no-cache gmp libpng libjpeg-turbo libwebp \
     && apk add --no-cache --virtual .build-deps gmp-dev libpng-dev libjpeg-turbo-dev libwebp-dev $PHPIZE_DEPS \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
